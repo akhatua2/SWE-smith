@@ -73,42 +73,20 @@ RUN pnpm install
 """
 
 
-@dataclass
-class Zod54902cb7(TypeScriptProfile):
-    owner: str = "colinhacks"
-    repo: str = "zod"
-    commit: str = "54902cb794f24f4ceb0cf8830e5a27b3490191f7"
-    test_cmd: str = "pnpm test -- --verbose"
-
-    @property
-    def dockerfile(self) -> str:
-        return f"""FROM node:18-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
-WORKDIR /{ENV_NAME}
-RUN git checkout {self.commit}
-RUN npm install -g pnpm
-RUN pnpm install
-"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_vitest(log)
-
 
 @dataclass
 class CrossEnv9951937a(TypeScriptProfile):
     owner: str = "kentcdodds"
     repo: str = "cross-env"
     commit: str = "9951937a7d3d4a1ea7bd2ce3133bcfb687125813"
-    test_cmd: str = "vitest run"
+    test_cmd: str = "npm test"
 
     @property
     def dockerfile(self) -> str:
         return f"""FROM node:18-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git procps && rm -rf /var/lib/apt/lists/*
 RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
 WORKDIR /{ENV_NAME}
-RUN git checkout {self.commit}
 RUN npm install
 """
 
@@ -126,11 +104,10 @@ class Trpc2f40ba93(TypeScriptProfile):
     @property
     def dockerfile(self) -> str:
         return f"""FROM node:22
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git procps && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm
 RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
 WORKDIR /{ENV_NAME}
-RUN git checkout {self.commit}
 RUN pnpm install
 """
 
@@ -148,10 +125,9 @@ class AutoAnimate9df29722(TypeScriptProfile):
     @property
     def dockerfile(self) -> str:
         return f"""FROM node:18-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git procps && rm -rf /var/lib/apt/lists/*
 RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
 WORKDIR /{ENV_NAME}
-RUN git checkout {self.commit}
 RUN npm install
 """
 
@@ -169,10 +145,9 @@ class ClassValidator977d2c70(TypeScriptProfile):
     @property
     def dockerfile(self) -> str:
         return f"""FROM node:18-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git procps && rm -rf /var/lib/apt/lists/*
 RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
 WORKDIR /{ENV_NAME}
-RUN git checkout {self.commit}
 RUN npm install
 """
 
@@ -190,11 +165,10 @@ class InversifyJSfdd91868(TypeScriptProfile):
     @property
     def dockerfile(self) -> str:
         return f"""FROM node:22-slim
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git procps && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm
 RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
 WORKDIR /{ENV_NAME}
-RUN git checkout {self.commit}
 RUN pnpm install
 """
 
