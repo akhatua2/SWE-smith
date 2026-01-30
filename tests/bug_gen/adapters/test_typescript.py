@@ -199,9 +199,7 @@ class Dog extends Animal {
 def test_get_entities_from_file_ts_ternary(tmp_path):
     """Test ternary expression detection."""
     ts_file = tmp_path / "ternary.ts"
-    ts_file.write_text(
-        "function abs(x: number): number { return x >= 0 ? x : -x; }"
-    )
+    ts_file.write_text("function abs(x: number): number { return x >= 0 ? x : -x; }")
     entities = []
     get_entities_from_file_ts(entities, ts_file)
     assert len(entities) == 1
