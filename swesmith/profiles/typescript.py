@@ -74,7 +74,6 @@ RUN pnpm install
 """
 
 
-
 @dataclass
 class CrossEnv9951937a(TypeScriptProfile):
     owner: str = "kentcdodds"
@@ -115,6 +114,7 @@ RUN pnpm install
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_vitest(log)
 
+
 @dataclass
 class ClassValidator977d2c70(TypeScriptProfile):
     owner: str = "typestack"
@@ -133,6 +133,7 @@ RUN npm install
 
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_jest(log)
+
 
 # Register all TypeScript profiles with the global registry
 from swesmith.profiles.base import registry

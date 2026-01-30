@@ -17,7 +17,12 @@ class TypeScriptEntity(CodeEntity):
     def _analyze_properties(self):
         node = self.node
 
-        if node.type in ["function_declaration", "function", "arrow_function", "method_definition"]:
+        if node.type in [
+            "function_declaration",
+            "function",
+            "arrow_function",
+            "method_definition",
+        ]:
             self._tags.add(CodeProperty.IS_FUNCTION)
         elif node.type in ["class_declaration", "class"]:
             self._tags.add(CodeProperty.IS_CLASS)
@@ -32,7 +37,13 @@ class TypeScriptEntity(CodeEntity):
             self._walk_for_properties(child)
 
     def _check_control_flow(self, n):
-        if n.type in ["for_statement", "for_in_statement", "for_of_statement", "while_statement", "do_statement"]:
+        if n.type in [
+            "for_statement",
+            "for_in_statement",
+            "for_of_statement",
+            "while_statement",
+            "do_statement",
+        ]:
             self._tags.add(CodeProperty.HAS_LOOP)
         if n.type == "if_statement":
             self._tags.add(CodeProperty.HAS_IF)
@@ -60,7 +71,9 @@ class TypeScriptEntity(CodeEntity):
             self._tags.add(CodeProperty.HAS_DECORATOR)
         if n.type in ["try_statement", "with_statement"]:
             self._tags.add(CodeProperty.HAS_WRAPPER)
-        if n.type == "class_declaration" and any(child.type == "class_heritage" for child in n.children):
+        if n.type == "class_declaration" and any(
+            child.type == "class_heritage" for child in n.children
+        ):
             self._tags.add(CodeProperty.HAS_PARENT)
         if n.type in ["unary_expression", "update_expression"]:
             self._tags.add(CodeProperty.HAS_UNARY_OP)
@@ -85,7 +98,9 @@ class TypeScriptEntity(CodeEntity):
         if self.node.type == "method_definition":
             return self._find_child_text("property_identifier")
         if self.node.type == "class_declaration":
-            return self._find_child_text("type_identifier") or self._find_child_text("identifier")
+            return self._find_child_text("type_identifier") or self._find_child_text(
+                "identifier"
+            )
         if self.node.type == "variable_declarator":
             return self._find_child_text("identifier")
         if self.node.type == "assignment_expression":
@@ -137,18 +152,30 @@ class TypeScriptEntity(CodeEntity):
         def walk(node):
             score = 0
             if node.type in [
-                "if_statement", "else_clause", "for_statement", "for_in_statement",
-                "for_of_statement", "while_statement", "do_statement", "switch_statement",
-                "case_clause", "catch_clause", "conditional_expression",
+                "if_statement",
+                "else_clause",
+                "for_statement",
+                "for_in_statement",
+                "for_of_statement",
+                "while_statement",
+                "do_statement",
+                "switch_statement",
+                "case_clause",
+                "catch_clause",
+                "conditional_expression",
             ]:
                 score += 1
             if node.type == "binary_expression":
                 for child in node.children:
-                    if hasattr(child, "text") and child.text.decode("utf-8") in ["&&", "||"]:
+                    if hasattr(child, "text") and child.text.decode("utf-8") in [
+                        "&&",
+                        "||",
+                    ]:
                         score += 1
             for child in node.children:
                 score += walk(child)
             return score
+
         return 1 + walk(self.node)
 
 
@@ -181,7 +208,11 @@ def _walk_and_collect(node, entities, lines, file_path, max_entities):
         return
 
     if node.type in ["function_declaration", "method_definition", "class_declaration"]:
-        entities.append(build_entity(node, lines, file_path, TypeScriptEntity, default_indent_size=2))
+        entities.append(
+            build_entity(
+                node, lines, file_path, TypeScriptEntity, default_indent_size=2
+            )
+        )
         if 0 <= max_entities == len(entities):
             return
 
@@ -190,14 +221,26 @@ def _walk_and_collect(node, entities, lines, file_path, max_entities):
             if child.type == "variable_declarator":
                 for grandchild in child.children:
                     if grandchild.type in ["function_expression", "arrow_function"]:
-                        entities.append(build_entity(child, lines, file_path, TypeScriptEntity, default_indent_size=2))
+                        entities.append(
+                            build_entity(
+                                child,
+                                lines,
+                                file_path,
+                                TypeScriptEntity,
+                                default_indent_size=2,
+                            )
+                        )
                         if 0 <= max_entities == len(entities):
                             return
 
     elif node.type == "assignment_expression":
         for child in node.children:
             if child.type in ["function_expression", "arrow_function"]:
-                entities.append(build_entity(node, lines, file_path, TypeScriptEntity, default_indent_size=2))
+                entities.append(
+                    build_entity(
+                        node, lines, file_path, TypeScriptEntity, default_indent_size=2
+                    )
+                )
                 if 0 <= max_entities == len(entities):
                     return
 

@@ -68,13 +68,15 @@ def test_get_entities_from_file_ts_with_type_annotations(tmp_path):
 
 def test_get_entities_from_file_ts_class(tmp_path):
     ts_file = tmp_path / "class.ts"
-    ts_file.write_text("""
+    ts_file.write_text(
+        """
 class MyClass {
     myMethod(x: string): string {
         return x;
     }
 }
-    """.strip())
+    """.strip()
+    )
     entities = []
     get_entities_from_file_ts(entities, ts_file)
     assert len(entities) == 2
@@ -94,7 +96,8 @@ def test_get_entities_from_file_ts_function_expression(tmp_path):
 
 def test_get_entities_from_file_ts_complexity(tmp_path):
     ts_file = tmp_path / "complex.ts"
-    ts_file.write_text("""
+    ts_file.write_text(
+        """
 function complex(x: number): number {
     if (x > 0) {
         for (let i = 0; i < x; i++) {
@@ -107,7 +110,8 @@ function complex(x: number): number {
     }
     return x;
 }
-    """.strip())
+    """.strip()
+    )
     entities = []
     get_entities_from_file_ts(entities, ts_file)
     assert len(entities) == 1
@@ -117,7 +121,9 @@ function complex(x: number): number {
 
 def test_get_entities_from_file_ts_boolean_operators(tmp_path):
     ts_file = tmp_path / "bool.ts"
-    ts_file.write_text("function f(a: boolean, b: boolean): boolean { return a && b || !a; }")
+    ts_file.write_text(
+        "function f(a: boolean, b: boolean): boolean { return a && b || !a; }"
+    )
     entities = []
     get_entities_from_file_ts(entities, ts_file)
     assert len(entities) == 1
@@ -127,7 +133,8 @@ def test_get_entities_from_file_ts_boolean_operators(tmp_path):
 def test_get_entities_from_file_ts_interface_ignored(tmp_path):
     """Interfaces should not be collected as entities."""
     ts_file = tmp_path / "interface.ts"
-    ts_file.write_text("""
+    ts_file.write_text(
+        """
 interface User {
     name: string;
     age: number;
@@ -136,7 +143,8 @@ interface User {
 function greet(user: User): string {
     return user.name;
 }
-    """.strip())
+    """.strip()
+    )
     entities = []
     get_entities_from_file_ts(entities, ts_file)
     # Only the function should be collected, not the interface
