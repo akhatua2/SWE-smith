@@ -1,14 +1,12 @@
 from dataclasses import dataclass, field
 
 from swesmith.constants import ENV_NAME
-from swesmith.profiles.base import RepoProfile
+from swesmith.profiles.base import RepoProfile, registry
 
 # Reuse JavaScript log parsers - they work for TypeScript too
 from swesmith.profiles.javascript import (
     parse_log_jest,
-    parse_log_mocha,
     parse_log_vitest,
-    parse_log_karma,
 )
 
 
@@ -136,8 +134,6 @@ RUN npm install
 
 
 # Register all TypeScript profiles with the global registry
-from swesmith.profiles.base import registry
-
 for name, obj in list(globals().items()):
     if (
         isinstance(obj, type)
