@@ -150,3 +150,132 @@ function greet(user: User): string {
     # Only the function should be collected, not the interface
     assert len(entities) == 1
     assert entities[0].name == "greet"
+
+
+def test_get_entities_from_file_ts_try_catch(tmp_path):
+    """Test try/catch/throw detection."""
+    ts_file = tmp_path / "trycatch.ts"
+    ts_file.write_text(
+        """
+function riskyOperation(): void {
+    try {
+        throw new Error("oops");
+    } catch (e) {
+        console.log(e);
+    }
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    assert len(entities) == 1
+    assert entities[0].has_exception
+
+
+def test_get_entities_from_file_ts_class_inheritance(tmp_path):
+    """Test class with extends (HAS_PARENT)."""
+    ts_file = tmp_path / "inheritance.ts"
+    ts_file.write_text(
+        """
+class Animal {
+    name: string;
+}
+
+class Dog extends Animal {
+    bark(): void {
+        console.log("woof");
+    }
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    names = [e.name for e in entities]
+    assert "Dog" in names
+    dog = next(e for e in entities if e.name == "Dog")
+    assert dog.has_parent
+
+
+def test_get_entities_from_file_ts_ternary(tmp_path):
+    """Test ternary expression detection."""
+    ts_file = tmp_path / "ternary.ts"
+    ts_file.write_text(
+        "function abs(x: number): number { return x >= 0 ? x : -x; }"
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    assert len(entities) == 1
+    assert entities[0].has_ternary
+
+
+def test_get_entities_from_file_ts_stub(tmp_path):
+    """Test stub generation."""
+    ts_file = tmp_path / "stub.ts"
+    ts_file.write_text("function hello(): string { return 'hello'; }")
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    assert len(entities) == 1
+    stub = entities[0].stub
+    assert "function hello(): string" in stub
+    assert "TODO" in stub
+
+
+def test_get_entities_from_file_ts_for_in_of(tmp_path):
+    """Test for-in and for-of loop detection."""
+    ts_file = tmp_path / "forin.ts"
+    ts_file.write_text(
+        """
+function iterate(arr: number[]): void {
+    for (const item of arr) {
+        console.log(item);
+    }
+    for (const key in arr) {
+        console.log(key);
+    }
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    assert len(entities) == 1
+    assert entities[0].has_loop
+
+
+def test_get_entities_from_file_ts_do_while(tmp_path):
+    """Test do-while loop detection."""
+    ts_file = tmp_path / "dowhile.ts"
+    ts_file.write_text(
+        """
+function countdown(n: number): void {
+    do {
+        console.log(n);
+        n--;
+    } while (n > 0);
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    assert len(entities) == 1
+    assert entities[0].has_loop
+
+
+def test_get_entities_from_file_ts_switch(tmp_path):
+    """Test switch statement complexity."""
+    ts_file = tmp_path / "switch.ts"
+    ts_file.write_text(
+        """
+function grade(score: number): string {
+    switch (true) {
+        case score >= 90: return 'A';
+        case score >= 80: return 'B';
+        default: return 'C';
+    }
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    assert len(entities) == 1
+    # base(1) + switch(1) = 2
+    assert entities[0].complexity >= 2
