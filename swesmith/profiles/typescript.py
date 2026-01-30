@@ -18,6 +18,7 @@ class TypeScriptProfile(RepoProfile):
     Profile for TypeScript repositories.
     """
 
+    org_dh: str = "akhatua"  # Use personal Docker Hub for TypeScript testing
     exts: list[str] = field(default_factory=lambda: [".ts", ".tsx"])
 
     def extract_entities(
@@ -114,27 +115,6 @@ RUN pnpm install
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_vitest(log)
 
-
-@dataclass
-class AutoAnimate9df29722(TypeScriptProfile):
-    owner: str = "formkit"
-    repo: str = "auto-animate"
-    commit: str = "9df29722052ac5da6f70f5b67698e8ba5a1a58d6"
-    test_cmd: str = "npm test"
-
-    @property
-    def dockerfile(self) -> str:
-        return f"""FROM node:18-slim
-RUN apt-get update && apt-get install -y git procps && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
-WORKDIR /{ENV_NAME}
-RUN npm install
-"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_jest(log)
-
-
 @dataclass
 class ClassValidator977d2c70(TypeScriptProfile):
     owner: str = "typestack"
@@ -153,28 +133,6 @@ RUN npm install
 
     def log_parser(self, log: str) -> dict[str, str]:
         return parse_log_jest(log)
-
-
-@dataclass
-class InversifyJSfdd91868(TypeScriptProfile):
-    owner: str = "inversify"
-    repo: str = "InversifyJS"
-    commit: str = "fdd9186891e777884012984c64c271e576155f08"
-    test_cmd: str = "pnpm run test"
-
-    @property
-    def dockerfile(self) -> str:
-        return f"""FROM node:22-slim
-RUN apt-get update && apt-get install -y git procps && rm -rf /var/lib/apt/lists/*
-RUN npm install -g pnpm
-RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
-WORKDIR /{ENV_NAME}
-RUN pnpm install
-"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_mocha(log)
-
 
 # Register all TypeScript profiles with the global registry
 from swesmith.profiles.base import registry
