@@ -216,7 +216,12 @@ def _walk_and_collect(node, entities, lines, file_path, max_entities):
         warnings.warn(f"Error encountered parsing {file_path}", stacklevel=2)
         return
 
-    if node.type in ["function_declaration", "method_definition", "class_declaration", "generator_function_declaration"]:
+    if node.type in [
+        "function_declaration",
+        "method_definition",
+        "class_declaration",
+        "generator_function_declaration",
+    ]:
         entities.append(
             build_entity(
                 node, lines, file_path, TypeScriptEntity, default_indent_size=2
