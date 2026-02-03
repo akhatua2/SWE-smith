@@ -16,7 +16,6 @@ class TypeScriptProfile(RepoProfile):
     Profile for TypeScript repositories.
     """
 
-    org_dh: str = "akhatua"  # Use personal Docker Hub for TypeScript testing
     exts: list[str] = field(default_factory=lambda: [".ts", ".tsx"])
 
     def extract_entities(
