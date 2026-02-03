@@ -214,7 +214,7 @@ class MyClass {
     assert "op: { id, type, path, input, signal }" in signature
     assert "transformer" in signature
     assert "lastEventId" in signature
-    # Check for complex type annotations (the actual pattern from the review)
+    # Check for complex type annotations
     assert "Pick<Operation" in signature
     assert "CombinedDataTransformer" in signature
     assert "lastEventId?: string" in signature
@@ -223,6 +223,38 @@ class MyClass {
     assert "return" not in signature
     # Should end with closing paren, not opening brace
     assert signature.rstrip().endswith(")")
+
+
+def test_get_entities_from_file_ts_generator_functions(tmp_path):
+    """Test that generator functions (function*) are collected."""
+    ts_file = tmp_path / "generator.ts"
+    ts_file.write_text(
+        """
+function* myGenerator() {
+  yield 1;
+  yield 2;
+}
+
+class MyClass {
+  *generatorMethod() {
+    yield 'test';
+  }
+  
+  regularMethod() {
+    return 'test';
+  }
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    names = [e.name for e in entities]
+    assert "myGenerator" in names
+    assert "generatorMethod" in names
+    assert "regularMethod" in names
+    # Verify generator function is tagged as function
+    generator = next(e for e in entities if e.name == "myGenerator")
+    assert generator.is_function
 
 
 def test_get_entities_from_file_ts_try_catch(tmp_path):
