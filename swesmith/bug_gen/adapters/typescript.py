@@ -3,6 +3,7 @@ TypeScript adapter for entity extraction.
 """
 
 import warnings
+from pathlib import Path
 
 import tree_sitter_typescript as tsts
 
@@ -11,6 +12,7 @@ from swesmith.bug_gen.adapters.utils import build_entity
 from tree_sitter import Language, Parser
 
 TS_LANGUAGE = Language(tsts.language_typescript())
+TSX_LANGUAGE = Language(tsts.language_tsx())
 
 
 class TypeScriptEntity(CodeEntity):
@@ -184,7 +186,9 @@ def get_entities_from_file_ts(
     file_path: str,
     max_entities: int = -1,
 ) -> list[TypeScriptEntity]:
-    parser = Parser(TS_LANGUAGE)
+    file_ext = Path(file_path).suffix
+    language = TSX_LANGUAGE if file_ext == ".tsx" else TS_LANGUAGE
+    parser = Parser(language)
 
     try:
         file_content = open(file_path, "r", encoding="utf8").read()
