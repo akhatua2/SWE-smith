@@ -152,6 +152,79 @@ function greet(user: User): string {
     assert entities[0].name == "greet"
 
 
+def test_get_entities_from_file_ts_abstract_methods_ignored(tmp_path):
+    """Abstract methods should not be collected as entities."""
+    ts_file = tmp_path / "abstract.ts"
+    ts_file.write_text(
+        """
+abstract class AbstractClass {
+    abstract abstractMethod(): void;
+    abstract anotherAbstract(): string;
+    
+    concreteMethod(): void {
+        return;
+    }
+}
+
+class ConcreteClass {
+    regularMethod(): void {
+        return;
+    }
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    # Only concrete methods and concrete classes should be collected
+    names = [e.name for e in entities]
+    assert "abstractMethod" not in names
+    assert "anotherAbstract" not in names
+    assert "AbstractClass" not in names
+    assert "concreteMethod" in names
+    assert "ConcreteClass" in names
+    assert "regularMethod" in names
+
+
+def test_get_entities_from_file_ts_multiline_signature(tmp_path):
+    """Multi-line function signatures should be correctly extracted without body."""
+    ts_file = tmp_path / "multiline.ts"
+    ts_file.write_text(
+        """
+class MyClass {
+  public request({
+    op: { id, type, path, input, signal },
+    transformer,
+    lastEventId,
+  }: {
+    op: Pick<Operation, 'id' | 'type' | 'path' | 'input' | 'signal'>;
+    transformer: CombinedDataTransformer;
+    lastEventId?: string;
+  }) {
+    return 'test';
+  }
+}
+    """.strip()
+    )
+    entities = []
+    get_entities_from_file_ts(entities, ts_file)
+    method = next((e for e in entities if e.name == "request"), None)
+    assert method is not None
+    signature = method.signature
+    # Signature should include the full parameter list but NOT the body
+    assert "op: { id, type, path, input, signal }" in signature
+    assert "transformer" in signature
+    assert "lastEventId" in signature
+    # Check for complex type annotations (the actual pattern from the review)
+    assert "Pick<Operation" in signature
+    assert "CombinedDataTransformer" in signature
+    assert "lastEventId?: string" in signature
+    # Should NOT include body content
+    assert "return 'test'" not in signature
+    assert "return" not in signature
+    # Should end with closing paren, not opening brace
+    assert signature.rstrip().endswith(")")
+
+
 def test_get_entities_from_file_ts_try_catch(tmp_path):
     """Test try/catch/throw detection."""
     ts_file = tmp_path / "trycatch.ts"

@@ -117,28 +117,32 @@ class TypeScriptEntity(CodeEntity):
 
     @property
     def signature(self) -> str:
+        # Use node.text (raw bytes) instead of src_code (dedented string) for accurate byte offsets
+        node_text = self.node.text.decode("utf-8")
+        
         for child in self.node.children:
             if child.type in ["statement_block", "class_body"]:
-                body_start = child.start_byte - self.node.start_byte
-                sig = self.src_code[:body_start].strip()
-                if sig.endswith(" {"):
-                    sig = sig[:-2].strip()
-                return sig
+                body_start_byte = child.start_byte - self.node.start_byte
+                signature = node_text[:body_start_byte].strip()
+                # Remove trailing { if present
+                if signature.endswith(" {"):
+                    signature = signature[:-2].strip()
+                return signature
 
         # Arrow functions with expression body
-        if self.node.type == "arrow_function" and "=>" in self.src_code:
-            return self.src_code.split("=>")[0].strip() + " =>"
+        if self.node.type == "arrow_function" and "=>" in node_text:
+            return node_text.split("=>")[0].strip() + " =>"
 
         # Function expressions: var myFunc = function(x, y) { ... }
         if self.node.type == "variable_declarator":
-            first_line = self.src_code.split("\n")[0]
+            first_line = node_text.split("\n")[0]
             if " = function" in first_line:
                 brace_pos = first_line.find(" {")
                 if brace_pos != -1:
                     return first_line[:brace_pos].strip()
                 return first_line.rstrip(";").strip()
 
-        return self.src_code.split("\n")[0].strip()
+        return node_text.split("\n")[0].strip()
 
     @property
     def stub(self) -> str:
