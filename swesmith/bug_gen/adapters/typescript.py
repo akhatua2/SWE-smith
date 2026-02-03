@@ -119,7 +119,7 @@ class TypeScriptEntity(CodeEntity):
     def signature(self) -> str:
         # Use node.text (raw bytes) instead of src_code (dedented string) for accurate byte offsets
         node_text = self.node.text.decode("utf-8")
-        
+
         for child in self.node.children:
             if child.type in ["statement_block", "class_body"]:
                 body_start_byte = child.start_byte - self.node.start_byte
