@@ -21,7 +21,7 @@ class TypeScriptProfile(RepoProfile):
 
     def extract_entities(
         self,
-        dirs_exclude: list[str] = None,
+        dirs_exclude: list[str] | None = None,
         dirs_include: list[str] = [],
         exclude_tests: bool = True,
         max_entities: int = -1,
