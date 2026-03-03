@@ -229,6 +229,18 @@ def test_build_test_name_to_files_map_same_fn_multiple_files(tmp_path):
     assert result["test_common"] == {"src/a.rs", "src/b.rs"}
 
 
+def test_build_test_name_to_files_map_pub_crate_fn(tmp_path):
+    _write_file(
+        tmp_path,
+        "src/vis.rs",
+        "#[test]\npub(crate) fn test_visible() {}\n\n#[test]\npub(super) async fn test_super() {}\n",
+    )
+    profile = _make_profile_with_clone(tmp_path)
+    result = profile._build_test_name_to_files_map()
+    assert "test_visible" in result
+    assert "test_super" in result
+
+
 def test_build_test_name_to_files_map_unreadable_file_skipped(tmp_path):
     _write_file(tmp_path, "src/good.rs", "#[test]\nfn test_ok() {}\n")
     bad_path = os.path.join(tmp_path, "src", "bad.rs")

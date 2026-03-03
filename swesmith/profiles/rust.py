@@ -59,7 +59,7 @@ class RustProfile(RepoProfile):
 
         # Regex to match #[test] and common async test attributes
         test_attr_re = re.compile(r"^\s*#\[(?:\w+::)*test")
-        fn_re = re.compile(r"^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)")
+        fn_re = re.compile(r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:async\s+)?fn\s+(\w+)")
         # Attributes, blank lines, or comments that can appear between #[test] and fn
         intervening_re = re.compile(r"^\s*(?:#\[|//|$)")
 
