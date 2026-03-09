@@ -89,7 +89,11 @@ class PhpEntity(CodeEntity):
         """Check for various operations."""
         if n.type in ["subscript_expression", "member_access_expression"]:
             self._tags.add(CodeProperty.HAS_LIST_INDEXING)
-        if n.type in ["function_call_expression", "member_call_expression", "scoped_call_expression"]:
+        if n.type in [
+            "function_call_expression",
+            "member_call_expression",
+            "scoped_call_expression",
+        ]:
             self._tags.add(CodeProperty.HAS_FUNCTION_CALL)
         if n.type == "return_statement":
             self._tags.add(CodeProperty.HAS_RETURN)
