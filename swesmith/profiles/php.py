@@ -1,7 +1,14 @@
+import os
 import re
+import shutil
 
 from dataclasses import dataclass, field
-from swebench.harness.constants import TestStatus
+from swebench.harness.constants import (
+    FAIL_TO_PASS,
+    PASS_TO_PASS,
+    KEY_INSTANCE_ID,
+    TestStatus,
+)
 from swesmith.constants import ENV_NAME
 from swesmith.profiles.base import RepoProfile, registry
 
@@ -15,6 +22,100 @@ class PhpProfile(RepoProfile):
     org_dh: str = "swebench"
     test_cmd: str = "vendor/bin/phpunit --testdox --colors=never"
     exts: list[str] = field(default_factory=lambda: [".php"])
+    _test_name_to_files_cache: dict[str, set[str]] = field(
+        default=None, init=False, repr=False
+    )
+
+    @staticmethod
+    def _testdox_name(method_name: str) -> str:
+        """Convert a PHP test method name to its testdox description.
+
+        PHPUnit strips the 'test' prefix, then converts camelCase to
+        space-separated lowercase words (first word capitalized).
+        e.g. testGetServerVersion -> Get server version
+             testFetchAssociative -> Fetch associative
+        """
+        name = method_name
+        if name.startswith("test"):
+            name = name[4:]
+        # Insert space before uppercase letters (camelCase -> words)
+        name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
+        name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", name)
+        # PHPUnit lowercases everything then capitalizes first letter
+        words = name.split()
+        if words:
+            words = [words[0]] + [w.lower() for w in words[1:]]
+            name = " ".join(words)
+        return name
+
+    def _build_test_name_to_files_map(self) -> dict[str, set[str]]:
+        """Build a mapping from testdox names to test file paths.
+
+        Scans PHP test files for method names starting with 'test' and
+        converts them to their testdox representation.
+        """
+        dest, cloned = self.clone()
+        name_to_files: dict[str, set[str]] = {}
+
+        test_method_re = re.compile(
+            r"(?:public\s+)?function\s+(test[A-Z]\w*)\s*\("
+        )
+
+        for dirpath, _, filenames in os.walk(dest):
+            if "vendor" in dirpath.split(os.sep):
+                continue
+            for fname in filenames:
+                if not fname.endswith(".php"):
+                    continue
+                # PHPUnit convention: test files end with Test.php or are in tests/ dir
+                parts = dirpath.split(os.sep)
+                in_test_dir = any(
+                    p in ("test", "tests", "Test", "Tests") for p in parts
+                )
+                is_test_named = fname.endswith("Test.php") or fname.startswith("test")
+                if not in_test_dir and not is_test_named:
+                    continue
+
+                full_path = os.path.join(dirpath, fname)
+                relative_path = os.path.relpath(full_path, dest)
+
+                try:
+                    with open(full_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except (OSError, UnicodeDecodeError):
+                    continue
+
+                for match in test_method_re.finditer(content):
+                    testdox = self._testdox_name(match.group(1))
+                    name_to_files.setdefault(testdox, set()).add(relative_path)
+
+        if cloned:
+            shutil.rmtree(dest)
+        return name_to_files
+
+    def get_test_files(self, instance: dict) -> tuple[list[str], list[str]]:
+        assert FAIL_TO_PASS in instance and PASS_TO_PASS in instance, (
+            f"Instance {instance[KEY_INSTANCE_ID]} missing required keys {FAIL_TO_PASS} or {PASS_TO_PASS}"
+        )
+
+        if self._test_name_to_files_cache is None:
+            with self._lock:
+                if self._test_name_to_files_cache is None:
+                    self._test_name_to_files_cache = (
+                        self._build_test_name_to_files_map()
+                    )
+
+        f2p_files: set[str] = set()
+        for test_name in instance[FAIL_TO_PASS]:
+            if test_name in self._test_name_to_files_cache:
+                f2p_files.update(self._test_name_to_files_cache[test_name])
+
+        p2p_files: set[str] = set()
+        for test_name in instance[PASS_TO_PASS]:
+            if test_name in self._test_name_to_files_cache:
+                p2p_files.update(self._test_name_to_files_cache[test_name])
+
+        return list(f2p_files), list(p2p_files)
 
 
 @dataclass
@@ -140,78 +241,6 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
 WORKDIR /{ENV_NAME}
 RUN composer install --ignore-platform-req=ext-mongodb
-"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_phpunit_testdox(log)
-
-
-@dataclass
-class PhpParser50f0d9c9(PhpProfile):
-    owner: str = "nikic"
-    repo: str = "PHP-Parser"
-    commit: str = "50f0d9c9d0e3cff1163c959c50aaaaa4a7115f08"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM php:8.3
-RUN apt-get update && \
-    apt-get install -y git unzip && \
-    apt-get -y autoclean && \
-    rm -rf /var/lib/apt/lists/*
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
-WORKDIR /{ENV_NAME}
-ENV COMPOSER_ROOT_VERSION=5.99.99
-RUN composer install --no-interaction
-"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_phpunit_testdox(log)
-
-
-@dataclass
-class Carbon72ee09e5(PhpProfile):
-    owner: str = "briannesbitt"
-    repo: str = "Carbon"
-    commit: str = "72ee09e5ada27bd82d668ba30e877722251d8322"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM php:8.3
-RUN apt-get update && \
-    apt-get install -y git unzip libxml2-dev libonig-dev && \
-    docker-php-ext-install mbstring xml dom && \
-    apt-get -y autoclean && \
-    rm -rf /var/lib/apt/lists/*
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
-WORKDIR /{ENV_NAME}
-RUN composer install
-"""
-
-    def log_parser(self, log: str) -> dict[str, str]:
-        return parse_log_phpunit_testdox(log)
-
-
-@dataclass
-class PHPMailera80b3777(PhpProfile):
-    owner: str = "PHPMailer"
-    repo: str = "PHPMailer"
-    commit: str = "a80b3777e68939a8ca0c7c32b58fb87190499f54"
-
-    @property
-    def dockerfile(self):
-        return f"""FROM php:8.3
-RUN apt-get update && \
-    apt-get install -y git unzip libxml2-dev libzip-dev libonig-dev && \
-    docker-php-ext-install mbstring zip && \
-    apt-get -y autoclean && \
-    rm -rf /var/lib/apt/lists/*
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-RUN git clone https://github.com/{self.mirror_name} /{ENV_NAME}
-WORKDIR /{ENV_NAME}
-RUN composer install
 """
 
     def log_parser(self, log: str) -> dict[str, str]:
