@@ -62,16 +62,18 @@ class ControlIfElseInvertModifier(PhpProceduralModifier):
                         break
 
                 if condition and consequence and alternative and self.flip():
-                    modifications.append({
-                        "node_start": n.start_byte - offset,
-                        "node_end": n.end_byte - offset,
-                        "cond_start": condition.start_byte - offset,
-                        "cond_end": condition.end_byte - offset,
-                        "cons_start": consequence.start_byte - offset,
-                        "cons_end": consequence.end_byte - offset,
-                        "alt_start": alternative.start_byte - offset,
-                        "alt_end": alternative.end_byte - offset,
-                    })
+                    modifications.append(
+                        {
+                            "node_start": n.start_byte - offset,
+                            "node_end": n.end_byte - offset,
+                            "cond_start": condition.start_byte - offset,
+                            "cond_end": condition.end_byte - offset,
+                            "cons_start": consequence.start_byte - offset,
+                            "cons_end": consequence.end_byte - offset,
+                            "alt_start": alternative.start_byte - offset,
+                            "alt_end": alternative.end_byte - offset,
+                        }
+                    )
 
             for child in n.children:
                 collect_if_statements(child)
@@ -83,9 +85,15 @@ class ControlIfElseInvertModifier(PhpProceduralModifier):
 
         modified_source = source_bytes
         for mod in reversed(modifications):
-            condition_text = source_bytes[mod["cond_start"] : mod["cond_end"]].decode("utf-8")
-            consequence_text = source_bytes[mod["cons_start"] : mod["cons_end"]].decode("utf-8")
-            alternative_text = source_bytes[mod["alt_start"] : mod["alt_end"]].decode("utf-8")
+            condition_text = source_bytes[mod["cond_start"] : mod["cond_end"]].decode(
+                "utf-8"
+            )
+            consequence_text = source_bytes[mod["cons_start"] : mod["cons_end"]].decode(
+                "utf-8"
+            )
+            alternative_text = source_bytes[mod["alt_start"] : mod["alt_end"]].decode(
+                "utf-8"
+            )
 
             inverted = f"if {condition_text} {alternative_text} else {consequence_text}"
 
@@ -109,7 +117,9 @@ class ControlShuffleLinesModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._shuffle_statements(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._shuffle_statements(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -140,11 +150,16 @@ class ControlShuffleLinesModifier(PhpProceduralModifier):
                         ]
 
                         if len(statements) >= 2 and self.flip():
-                            shuffles.append({
-                                "block_start": child.start_byte - offset,
-                                "block_end": child.end_byte - offset,
-                                "statements": [(s.start_byte - offset, s.end_byte - offset) for s in statements],
-                            })
+                            shuffles.append(
+                                {
+                                    "block_start": child.start_byte - offset,
+                                    "block_end": child.end_byte - offset,
+                                    "statements": [
+                                        (s.start_byte - offset, s.end_byte - offset)
+                                        for s in statements
+                                    ],
+                                }
+                            )
                         return
 
             for child in n.children:

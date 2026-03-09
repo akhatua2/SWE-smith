@@ -27,7 +27,9 @@ class OperationChangeModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._change_operators(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._change_operators(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -64,11 +66,13 @@ class OperationChangeModifier(PhpProceduralModifier):
                         other_ops = [op for op in group if op != operator]
                         if other_ops and self.flip():
                             new_op = self.rand.choice(other_ops)
-                            changes.append({
-                                "start": child.start_byte - offset,
-                                "end": child.end_byte - offset,
-                                "new_op": new_op,
-                            })
+                            changes.append(
+                                {
+                                    "start": child.start_byte - offset,
+                                    "end": child.end_byte - offset,
+                                    "new_op": new_op,
+                                }
+                            )
                         break
 
             for child in n.children:
@@ -100,7 +104,9 @@ class OperationFlipOperatorModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._flip_operators(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._flip_operators(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -139,11 +145,13 @@ class OperationFlipOperatorModifier(PhpProceduralModifier):
                 for child in n.children:
                     if child.type in operator_flips:
                         if self.flip():
-                            changes.append({
-                                "start": child.start_byte - offset,
-                                "end": child.end_byte - offset,
-                                "new_op": operator_flips[child.type],
-                            })
+                            changes.append(
+                                {
+                                    "start": child.start_byte - offset,
+                                    "end": child.end_byte - offset,
+                                    "new_op": operator_flips[child.type],
+                                }
+                            )
                         break
 
             for child in n.children:
@@ -175,7 +183,9 @@ class OperationSwapOperandsModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._swap_operands(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._swap_operands(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -202,15 +212,17 @@ class OperationSwapOperandsModifier(PhpProceduralModifier):
                         op_flip = {"<": ">", ">": "<", "<=": ">=", ">=": "<="}
                         operator = op_flip.get(operator, operator)
 
-                    changes.append({
-                        "node_start": n.start_byte - offset,
-                        "node_end": n.end_byte - offset,
-                        "left_start": left.start_byte - offset,
-                        "left_end": left.end_byte - offset,
-                        "right_start": right.start_byte - offset,
-                        "right_end": right.end_byte - offset,
-                        "operator": operator,
-                    })
+                    changes.append(
+                        {
+                            "node_start": n.start_byte - offset,
+                            "node_end": n.end_byte - offset,
+                            "left_start": left.start_byte - offset,
+                            "left_end": left.end_byte - offset,
+                            "right_start": right.start_byte - offset,
+                            "right_end": right.end_byte - offset,
+                            "operator": operator,
+                        }
+                    )
 
             for child in n.children:
                 collect_binary_ops(child)
@@ -222,8 +234,12 @@ class OperationSwapOperandsModifier(PhpProceduralModifier):
 
         modified_source = source_bytes
         for change in reversed(changes):
-            left_text = _safe_decode(source_bytes[change["left_start"] : change["left_end"]])
-            right_text = _safe_decode(source_bytes[change["right_start"] : change["right_end"]])
+            left_text = _safe_decode(
+                source_bytes[change["left_start"] : change["left_end"]]
+            )
+            right_text = _safe_decode(
+                source_bytes[change["right_start"] : change["right_end"]]
+            )
 
             swapped = f"{right_text} {change['operator']} {left_text}"
 
@@ -246,7 +262,9 @@ class OperationChangeConstantsModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._change_constants(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._change_constants(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -270,7 +288,9 @@ class OperationChangeConstantsModifier(PhpProceduralModifier):
                     value_text = _safe_decode(source_bytes[start:end])
                     value = int(value_text)
                     new_value = value + self.rand.choice([-1, 1, -2, 2])
-                    changes.append({"start": start, "end": end, "new_value": str(new_value)})
+                    changes.append(
+                        {"start": start, "end": end, "new_value": str(new_value)}
+                    )
                 except ValueError:
                     pass
 
@@ -327,26 +347,58 @@ class OperationBreakChainsModifier(PhpProceduralModifier):
                 if left.type == "binary_expression" and self.flip():
                     if len(left.children) >= 3:
                         left_right = left.children[2]
-                        lr_text = _safe_decode(source_bytes[left_right.start_byte - offset : left_right.end_byte - offset])
-                        op_text = _safe_decode(source_bytes[operator.start_byte - offset : operator.end_byte - offset])
-                        r_text = _safe_decode(source_bytes[right.start_byte - offset : right.end_byte - offset])
-                        changes.append({
-                            "start": n.start_byte - offset,
-                            "end": n.end_byte - offset,
-                            "replacement": f"{lr_text} {op_text} {r_text}",
-                        })
+                        lr_text = _safe_decode(
+                            source_bytes[
+                                left_right.start_byte - offset : left_right.end_byte
+                                - offset
+                            ]
+                        )
+                        op_text = _safe_decode(
+                            source_bytes[
+                                operator.start_byte - offset : operator.end_byte
+                                - offset
+                            ]
+                        )
+                        r_text = _safe_decode(
+                            source_bytes[
+                                right.start_byte - offset : right.end_byte - offset
+                            ]
+                        )
+                        changes.append(
+                            {
+                                "start": n.start_byte - offset,
+                                "end": n.end_byte - offset,
+                                "replacement": f"{lr_text} {op_text} {r_text}",
+                            }
+                        )
 
                 elif right.type == "binary_expression" and self.flip():
                     if len(right.children) >= 3:
                         right_left = right.children[0]
-                        l_text = _safe_decode(source_bytes[left.start_byte - offset : left.end_byte - offset])
-                        op_text = _safe_decode(source_bytes[operator.start_byte - offset : operator.end_byte - offset])
-                        rl_text = _safe_decode(source_bytes[right_left.start_byte - offset : right_left.end_byte - offset])
-                        changes.append({
-                            "start": n.start_byte - offset,
-                            "end": n.end_byte - offset,
-                            "replacement": f"{l_text} {op_text} {rl_text}",
-                        })
+                        l_text = _safe_decode(
+                            source_bytes[
+                                left.start_byte - offset : left.end_byte - offset
+                            ]
+                        )
+                        op_text = _safe_decode(
+                            source_bytes[
+                                operator.start_byte - offset : operator.end_byte
+                                - offset
+                            ]
+                        )
+                        rl_text = _safe_decode(
+                            source_bytes[
+                                right_left.start_byte - offset : right_left.end_byte
+                                - offset
+                            ]
+                        )
+                        changes.append(
+                            {
+                                "start": n.start_byte - offset,
+                                "end": n.end_byte - offset,
+                                "replacement": f"{l_text} {op_text} {rl_text}",
+                            }
+                        )
 
             for child in n.children:
                 collect_chains(child)
@@ -420,24 +472,32 @@ class AugmentedAssignmentSwapModifier(PhpProceduralModifier):
         def collect_augmented_assignments(n):
             if n.type == "augmented_assignment_expression":
                 for child in n.children:
-                    op_text = source_bytes[child.start_byte - offset : child.end_byte - offset].decode("utf-8")
+                    op_text = source_bytes[
+                        child.start_byte - offset : child.end_byte - offset
+                    ].decode("utf-8")
                     if op_text in aug_assign_swaps and self.flip():
-                        changes.append({
-                            "start": child.start_byte - offset,
-                            "end": child.end_byte - offset,
-                            "new_op": aug_assign_swaps[op_text],
-                        })
+                        changes.append(
+                            {
+                                "start": child.start_byte - offset,
+                                "end": child.end_byte - offset,
+                                "new_op": aug_assign_swaps[op_text],
+                            }
+                        )
                         break
 
             elif n.type == "update_expression":
                 for child in n.children:
-                    op_text = source_bytes[child.start_byte - offset : child.end_byte - offset].decode("utf-8")
+                    op_text = source_bytes[
+                        child.start_byte - offset : child.end_byte - offset
+                    ].decode("utf-8")
                     if op_text in update_swaps and self.flip():
-                        changes.append({
-                            "start": child.start_byte - offset,
-                            "end": child.end_byte - offset,
-                            "new_op": update_swaps[op_text],
-                        })
+                        changes.append(
+                            {
+                                "start": child.start_byte - offset,
+                                "end": child.end_byte - offset,
+                                "new_op": update_swaps[op_text],
+                            }
+                        )
                         break
 
             for child in n.children:
@@ -469,7 +529,9 @@ class TernaryOperatorSwapModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._modify_ternary(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._modify_ternary(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -494,18 +556,22 @@ class TernaryOperatorSwapModifier(PhpProceduralModifier):
                     alternative = content_children[2]
 
                     if self.flip():
-                        mod_type = self.rand.choice(["swap_branches", "negate_condition"])
-                        changes.append({
-                            "start": n.start_byte - offset,
-                            "end": n.end_byte - offset,
-                            "cond_start": condition.start_byte - offset,
-                            "cond_end": condition.end_byte - offset,
-                            "cons_start": consequent.start_byte - offset,
-                            "cons_end": consequent.end_byte - offset,
-                            "alt_start": alternative.start_byte - offset,
-                            "alt_end": alternative.end_byte - offset,
-                            "mod_type": mod_type,
-                        })
+                        mod_type = self.rand.choice(
+                            ["swap_branches", "negate_condition"]
+                        )
+                        changes.append(
+                            {
+                                "start": n.start_byte - offset,
+                                "end": n.end_byte - offset,
+                                "cond_start": condition.start_byte - offset,
+                                "cond_end": condition.end_byte - offset,
+                                "cons_start": consequent.start_byte - offset,
+                                "cons_end": consequent.end_byte - offset,
+                                "alt_start": alternative.start_byte - offset,
+                                "alt_end": alternative.end_byte - offset,
+                                "mod_type": mod_type,
+                            }
+                        )
 
             for child in n.children:
                 collect_ternary_ops(child)
@@ -517,9 +583,15 @@ class TernaryOperatorSwapModifier(PhpProceduralModifier):
 
         modified_source = source_bytes
         for change in reversed(changes):
-            cond_text = _safe_decode(source_bytes[change["cond_start"] : change["cond_end"]])
-            cons_text = _safe_decode(source_bytes[change["cons_start"] : change["cons_end"]])
-            alt_text = _safe_decode(source_bytes[change["alt_start"] : change["alt_end"]])
+            cond_text = _safe_decode(
+                source_bytes[change["cond_start"] : change["cond_end"]]
+            )
+            cons_text = _safe_decode(
+                source_bytes[change["cons_start"] : change["cons_end"]]
+            )
+            alt_text = _safe_decode(
+                source_bytes[change["alt_start"] : change["alt_end"]]
+            )
 
             if change["mod_type"] == "swap_branches":
                 new_ternary = f"{cond_text} ? {alt_text} : {cons_text}"
@@ -545,7 +617,9 @@ class FunctionArgumentSwapModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._swap_arguments(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._swap_arguments(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -561,7 +635,11 @@ class FunctionArgumentSwapModifier(PhpProceduralModifier):
         source_bytes = source_code.encode("utf-8")
 
         def collect_function_calls(n):
-            if n.type in ["function_call_expression", "member_call_expression", "scoped_call_expression"]:
+            if n.type in [
+                "function_call_expression",
+                "member_call_expression",
+                "scoped_call_expression",
+            ]:
                 args_node = None
                 for child in n.children:
                     if child.type == "arguments":
@@ -569,16 +647,23 @@ class FunctionArgumentSwapModifier(PhpProceduralModifier):
                         break
 
                 if args_node:
-                    args = [c for c in args_node.children if c.type not in ["(", ")", ","]]
+                    args = [
+                        c for c in args_node.children if c.type not in ["(", ")", ","]
+                    ]
 
                     if len(args) >= 2 and self.flip():
                         swap_idx = self.rand.randint(0, len(args) - 2)
-                        changes.append({
-                            "args_start": args_node.start_byte - offset,
-                            "args_end": args_node.end_byte - offset,
-                            "args": [(a.start_byte - offset, a.end_byte - offset) for a in args],
-                            "swap_idx": swap_idx,
-                        })
+                        changes.append(
+                            {
+                                "args_start": args_node.start_byte - offset,
+                                "args_end": args_node.end_byte - offset,
+                                "args": [
+                                    (a.start_byte - offset, a.end_byte - offset)
+                                    for a in args
+                                ],
+                                "swap_idx": swap_idx,
+                            }
+                        )
 
             for child in n.children:
                 collect_function_calls(child)

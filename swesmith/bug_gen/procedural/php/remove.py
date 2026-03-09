@@ -65,7 +65,9 @@ class RemoveConditionalModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._remove_conditionals(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._remove_conditionals(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -108,7 +110,9 @@ class RemoveAssignmentModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._remove_assignments(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._remove_assignments(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -129,7 +133,9 @@ class RemoveAssignmentModifier(PhpProceduralModifier):
             ]:
                 if self.flip():
                     if n.parent and n.parent.type == "expression_statement":
-                        removals.append((n.parent.start_byte - offset, n.parent.end_byte - offset))
+                        removals.append(
+                            (n.parent.start_byte - offset, n.parent.end_byte - offset)
+                        )
                     else:
                         removals.append((n.start_byte - offset, n.end_byte - offset))
             for child in n.children:
@@ -142,7 +148,11 @@ class RemoveAssignmentModifier(PhpProceduralModifier):
 
         modified_source = source_code
         for start, end in reversed(removals):
-            while end < len(modified_source) and modified_source[end] in [" ", "\t", ";"]:
+            while end < len(modified_source) and modified_source[end] in [
+                " ",
+                "\t",
+                ";",
+            ]:
                 end += 1
             if end < len(modified_source) and modified_source[end] == "\n":
                 end += 1
@@ -162,7 +172,9 @@ class RemoveTernaryModifier(PhpProceduralModifier):
     def modify(self, code_entity: CodeEntity) -> BugRewrite:
         tree, offset = php_parse(code_entity.src_code)
 
-        modified_code = self._remove_ternary(code_entity.src_code, tree.root_node, offset)
+        modified_code = self._remove_ternary(
+            code_entity.src_code, tree.root_node, offset
+        )
 
         if modified_code == code_entity.src_code:
             return None
@@ -187,12 +199,14 @@ class RemoveTernaryModifier(PhpProceduralModifier):
                     if self.flip():
                         keep_consequent = self.rand.choice([True, False])
                         replacement = consequent if keep_consequent else alternative
-                        changes.append({
-                            "start": n.start_byte - offset,
-                            "end": n.end_byte - offset,
-                            "rep_start": replacement.start_byte - offset,
-                            "rep_end": replacement.end_byte - offset,
-                        })
+                        changes.append(
+                            {
+                                "start": n.start_byte - offset,
+                                "end": n.end_byte - offset,
+                                "rep_start": replacement.start_byte - offset,
+                                "rep_end": replacement.end_byte - offset,
+                            }
+                        )
 
             for child in n.children:
                 collect_ternary_ops(child)

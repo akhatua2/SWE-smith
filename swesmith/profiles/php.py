@@ -57,9 +57,7 @@ class PhpProfile(RepoProfile):
         dest, cloned = self.clone()
         name_to_files: dict[str, set[str]] = {}
 
-        test_method_re = re.compile(
-            r"(?:public\s+)?function\s+(test[A-Z]\w*)\s*\("
-        )
+        test_method_re = re.compile(r"(?:public\s+)?function\s+(test[A-Z]\w*)\s*\(")
 
         for dirpath, _, filenames in os.walk(dest):
             if "vendor" in dirpath.split(os.sep):

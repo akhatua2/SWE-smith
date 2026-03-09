@@ -130,7 +130,7 @@ def test_build_map_basic_test_file(tmp_path):
     _write_file(
         tmp_path,
         "tests/ConnectionTest.php",
-        '<?php\nclass ConnectionTest {\n    public function testPrepare() {}\n    public function testQuery() {}\n}\n',
+        "<?php\nclass ConnectionTest {\n    public function testPrepare() {}\n    public function testQuery() {}\n}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
     result = profile._build_test_name_to_files_map()
