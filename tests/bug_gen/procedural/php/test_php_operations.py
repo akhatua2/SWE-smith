@@ -228,23 +228,45 @@ def test_ternary_operator_swap_modifier(tmp_path, src):
 
 
 @pytest.mark.parametrize(
-    "src",
+    "src,expected_call",
     [
-        """function foo() {
+        (
+            """function foo() {
     return add(1, 2);
 }""",
-        """function bar() {
+            "add(2, 1)",
+        ),
+        (
+            """function bar() {
     return compute($a, $b, $c);
 }""",
+            None,
+        ),
+        (
+            """function baz($obj) {
+    return $obj->method(1, 2);
+}""",
+            "method(2, 1)",
+        ),
+        (
+            """function qux() {
+    return MyClass::create($x, $y);
+}""",
+            "create($y, $x)",
+        ),
     ],
 )
-def test_function_argument_swap_modifier(tmp_path, src):
+def test_function_argument_swap_modifier(tmp_path, src, expected_call):
     entity = _get_entity(tmp_path, src)
     modifier = FunctionArgumentSwapModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
 
     assert result is not None
     assert result.rewrite != src
+    if expected_call:
+        assert expected_call in result.rewrite
+    else:
+        assert "compute(" in result.rewrite
 
 
 def test_safe_decode_valid():

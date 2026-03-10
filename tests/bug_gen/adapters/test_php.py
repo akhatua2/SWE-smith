@@ -230,19 +230,14 @@ def test_php_entity_has_lambda_arrow(tmp_path):
 
 
 def test_php_entity_has_lambda_anonymous(tmp_path):
-    """anonymous_function_creation_expression check in adapter.
-    tree-sitter-php uses 'anonymous_function' node type, so this won't
-    currently trigger HAS_LAMBDA. Verify it doesn't crash."""
+    """Anonymous function (closure) should trigger HAS_LAMBDA."""
     src = """function foo() {
     $fn = function($x) { return $x * 2; };
     return $fn(5);
 }"""
     entities = _get_entities(tmp_path, src)
     assert len(entities) >= 1
-    # The adapter checks for 'anonymous_function_creation_expression' but
-    # tree-sitter uses 'anonymous_function', so this tag won't be set.
-    # Arrow functions (fn =>) do work correctly.
-    assert CodeProperty.HAS_LAMBDA not in entities[0]._tags
+    assert CodeProperty.HAS_LAMBDA in entities[0]._tags
 
 
 def test_php_entity_has_arithmetic(tmp_path):

@@ -103,7 +103,7 @@ class PhpEntity(CodeEntity):
             self._tags.add(CodeProperty.HAS_ASSIGNMENT)
         if n.type == "arrow_function":
             self._tags.add(CodeProperty.HAS_LAMBDA)
-        if n.type == "anonymous_function_creation_expression":
+        if n.type == "anonymous_function":
             self._tags.add(CodeProperty.HAS_LAMBDA)
         if n.type in ["binary_expression", "unary_op_expression", "update_expression"]:
             self._tags.add(CodeProperty.HAS_ARITHMETIC)

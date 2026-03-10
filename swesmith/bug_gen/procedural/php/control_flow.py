@@ -46,6 +46,7 @@ class ControlIfElseInvertModifier(PhpProceduralModifier):
                 condition = None
                 consequence = None
                 alternative = None
+                has_elseif = False
 
                 for child in n.children:
                     if child.type == "if":
@@ -54,6 +55,8 @@ class ControlIfElseInvertModifier(PhpProceduralModifier):
                         condition = child
                     elif child.type == "compound_statement" and consequence is None:
                         consequence = child
+                    elif child.type == "else_if_clause":
+                        has_elseif = True
                     elif child.type == "else_clause":
                         for else_child in child.children:
                             if else_child.type == "compound_statement":
@@ -61,7 +64,8 @@ class ControlIfElseInvertModifier(PhpProceduralModifier):
                                 break
                         break
 
-                if condition and consequence and alternative and self.flip():
+                # Skip if/elseif/else chains to avoid dropping elseif branches
+                if condition and consequence and alternative and not has_elseif and self.flip():
                     modifications.append(
                         {
                             "node_start": n.start_byte - offset,
@@ -138,7 +142,6 @@ class ControlShuffleLinesModifier(PhpProceduralModifier):
             if n.type in [
                 "function_definition",
                 "method_declaration",
-                "arrow_function",
             ]:
                 for child in n.children:
                     if child.type == "compound_statement":

@@ -18,16 +18,21 @@ def _get_entity(tmp_path, src):
 
 
 @pytest.mark.parametrize(
-    "src",
+    "src,orig_if_body,orig_else_body",
     [
-        """function foo($x) {
+        (
+            """function foo($x) {
     if ($x > 0) {
         return "positive";
     } else {
         return "non-positive";
     }
 }""",
-        """function bar($a, $b) {
+            'return "positive";',
+            'return "non-positive";',
+        ),
+        (
+            """function bar($a, $b) {
     if ($a === $b) {
         $result = true;
     } else {
@@ -35,15 +40,25 @@ def _get_entity(tmp_path, src):
     }
     return $result;
 }""",
+            "$result = true;",
+            "$result = false;",
+        ),
     ],
 )
-def test_control_if_else_invert_modifier(tmp_path, src):
+def test_control_if_else_invert_modifier(tmp_path, src, orig_if_body, orig_else_body):
     entity = _get_entity(tmp_path, src)
     modifier = ControlIfElseInvertModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
 
     assert result is not None
     assert result.rewrite != src
+    rewrite = result.rewrite
+    if_idx = rewrite.index("if")
+    else_idx = rewrite.index("else", if_idx)
+    if_block = rewrite[if_idx:else_idx]
+    else_block = rewrite[else_idx:]
+    assert orig_else_body in if_block
+    assert orig_if_body in else_block
 
 
 @pytest.mark.parametrize(
@@ -63,15 +78,38 @@ def test_control_if_else_invert_modifier(tmp_path, src):
 def test_control_shuffle_lines_modifier(tmp_path, src):
     entity = _get_entity(tmp_path, src)
     modifier = ControlShuffleLinesModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
 
-    found_different = False
-    for _ in range(20):
-        result = modifier.modify(entity)
-        if result and result.rewrite != src:
-            found_different = True
-            break
+    assert result is not None
+    assert result.rewrite != src
+    for stmt in ["$a = 1;", "$b = 2;", "$c = 3;"]:
+        assert stmt in result.rewrite
 
-    assert found_different, "Expected shuffled output to differ from input"
+
+def test_control_shuffle_lines_method(tmp_path):
+    """Shuffle lines within a class method."""
+    src = """class Calc {
+    public function compute($x) {
+        $a = 1;
+        $b = 2;
+        $c = 3;
+        return $a + $b + $c;
+    }
+}"""
+    test_file = tmp_path / "test.php"
+    test_file.write_text(PHP_PREFIX + src, encoding="utf-8")
+    entities = []
+    get_entities_from_file_php(entities, str(test_file))
+    method_entities = [e for e in entities if e.node.type == "method_declaration"]
+    assert len(method_entities) >= 1
+
+    modifier = ControlShuffleLinesModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(method_entities[0])
+
+    assert result is not None
+    assert result.rewrite != method_entities[0].src_code
+    for stmt in ["$a = 1;", "$b = 2;", "$c = 3;"]:
+        assert stmt in result.rewrite
 
 
 def test_control_if_else_invert_no_else(tmp_path):

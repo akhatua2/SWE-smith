@@ -461,7 +461,7 @@ class AugmentedAssignmentSwapModifier(PhpProceduralModifier):
             ">>=": "<<=",
             ".=": "+=",  # PHP string concat assignment
             "**=": "*=",
-            "??=": "||=",
+            "??=": ".=",
         }
 
         update_swaps = {
@@ -639,6 +639,7 @@ class FunctionArgumentSwapModifier(PhpProceduralModifier):
                 "function_call_expression",
                 "member_call_expression",
                 "scoped_call_expression",
+                "nullsafe_member_call_expression",
             ]:
                 args_node = None
                 for child in n.children:
