@@ -65,7 +65,13 @@ class ControlIfElseInvertModifier(PhpProceduralModifier):
                         break
 
                 # Skip if/elseif/else chains to avoid dropping elseif branches
-                if condition and consequence and alternative and not has_elseif and self.flip():
+                if (
+                    condition
+                    and consequence
+                    and alternative
+                    and not has_elseif
+                    and self.flip()
+                ):
                     modifications.append(
                         {
                             "node_start": n.start_byte - offset,
