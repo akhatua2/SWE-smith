@@ -133,3 +133,91 @@ def test_remove_ternary_modifier(tmp_path, src):
     assert result is not None
     assert result.rewrite != src
     assert "?" not in result.rewrite
+
+
+def test_remove_loop_no_loops(tmp_path):
+    src = """function foo($x) {
+    return $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveLoopModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_remove_loop_likelihood_zero(tmp_path):
+    src = """function foo($arr) {
+    $sum = 0;
+    for ($i = 0; $i < count($arr); $i++) {
+        $sum += $arr[$i];
+    }
+    return $sum;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveLoopModifier(likelihood=0.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_remove_conditional_no_conditionals(tmp_path):
+    src = """function foo($x) {
+    return $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveConditionalModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_remove_conditional_likelihood_zero(tmp_path):
+    src = """function foo($x) {
+    if ($x > 0) {
+        return "positive";
+    }
+    return "other";
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveConditionalModifier(likelihood=0.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_remove_assignment_no_assignments(tmp_path):
+    src = """function foo($x) {
+    return $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveAssignmentModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_remove_assignment_likelihood_zero(tmp_path):
+    src = """function foo($x) {
+    $y = $x + 1;
+    return $y;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveAssignmentModifier(likelihood=0.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_remove_ternary_no_ternary(tmp_path):
+    src = """function foo($x) {
+    return $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveTernaryModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_remove_ternary_likelihood_zero(tmp_path):
+    src = """function foo($x) {
+    return $x > 0 ? "yes" : "no";
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveTernaryModifier(likelihood=0.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None

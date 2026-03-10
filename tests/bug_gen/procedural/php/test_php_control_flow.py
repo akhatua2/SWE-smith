@@ -72,3 +72,57 @@ def test_control_shuffle_lines_modifier(tmp_path, src):
             break
 
     assert found_different, "Expected shuffled output to differ from input"
+
+
+def test_control_if_else_invert_no_else(tmp_path):
+    """If-only (no else) should return None."""
+    src = """function foo($x) {
+    if ($x > 0) {
+        return "positive";
+    }
+    return "other";
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = ControlIfElseInvertModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_control_if_else_invert_likelihood_zero(tmp_path):
+    """All retries fail when likelihood=0."""
+    src = """function foo($x) {
+    if ($x > 0) {
+        return "positive";
+    } else {
+        return "non-positive";
+    }
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = ControlIfElseInvertModifier(likelihood=0.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_control_shuffle_lines_no_function_body(tmp_path):
+    """Code without a proper function body should return None."""
+    src = """function foo($x) {
+    return $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = ControlShuffleLinesModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    # Only one statement, can't shuffle
+    assert result is None
+
+
+def test_control_shuffle_lines_likelihood_zero(tmp_path):
+    src = """function foo($x) {
+    $a = 1;
+    $b = 2;
+    $c = 3;
+    return $a + $b + $c;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = ControlShuffleLinesModifier(likelihood=0.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None

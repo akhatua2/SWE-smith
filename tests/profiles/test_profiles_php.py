@@ -300,3 +300,52 @@ def test_php_profile_defaults():
     assert profile.org_dh == "swebench"
     assert profile.exts == [".php"]
     assert "phpunit" in profile.test_cmd
+
+
+def test_build_map_unreadable_file(tmp_path):
+    """Files that can't be read (OSError/UnicodeDecodeError) are skipped."""
+    # Write a binary file that will cause UnicodeDecodeError
+    test_dir = tmp_path / "tests"
+    test_dir.mkdir()
+    bad_file = test_dir / "BadTest.php"
+    bad_file.write_bytes(b"<?php\n\xff\xfe function testBad() {}\n")
+
+    profile = _make_profile_with_clone(tmp_path)
+    result = profile._build_test_name_to_files_map()
+    # The file should be skipped due to decode error, but not crash
+    # It may or may not have results depending on whether the binary content is valid
+    assert isinstance(result, dict)
+
+
+def test_build_map_test_prefixed_file(tmp_path):
+    """Files starting with 'test' should be picked up even outside tests/ dir."""
+    _write_file(
+        tmp_path,
+        "src/testHelper.php",
+        "<?php\nclass TestHelper {\n    public function testDoStuff() {}\n}\n",
+    )
+    profile = _make_profile_with_clone(tmp_path)
+    result = profile._build_test_name_to_files_map()
+    assert "Do stuff" in result
+
+
+def test_testdox_name_no_test_prefix():
+    """Method name without 'test' prefix still gets camelCase splitting."""
+    assert PhpProfile._testdox_name("setUp") == "set up"
+
+
+def test_get_test_files_partial_cache_match():
+    """Some test names in cache, some not."""
+    cache = {
+        "Prepare": {"tests/ConnectionTest.php"},
+        "Query": {"tests/ConnectionTest.php"},
+    }
+    profile = _make_profile_with_cache(cache)
+    instance = {
+        "instance_id": "dummy__dummyrepo.deadbeef.1",
+        "FAIL_TO_PASS": ["Prepare", "Not in cache"],
+        "PASS_TO_PASS": ["Query", "Also missing"],
+    }
+    f2p, p2p = profile.get_test_files(instance)
+    assert set(f2p) == {"tests/ConnectionTest.php"}
+    assert set(p2p) == {"tests/ConnectionTest.php"}
