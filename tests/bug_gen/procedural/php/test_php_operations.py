@@ -57,15 +57,12 @@ def _get_entity(tmp_path, src):
 def test_operation_change_modifier(tmp_path, src, expected_variants):
     entity = _get_entity(tmp_path, src)
     modifier = OperationChangeModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
 
-    found_variant = False
-    for _ in range(20):
-        result = modifier.modify(entity)
-        if result and any(v in result.rewrite for v in expected_variants):
-            found_variant = True
-            break
-
-    assert found_variant, f"Expected one of {expected_variants} in output"
+    assert result is not None
+    assert any(v in result.rewrite for v in expected_variants), (
+        f"Expected one of {expected_variants} in output, got: {result.rewrite}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -75,19 +72,73 @@ def test_operation_change_modifier(tmp_path, src, expected_variants):
             """function foo($a, $b) {
     return $a === $b;
 }""",
-            "!==",
+            "return $a !== $b;",
         ),
         (
-            """function bar($x, $y) {
+            """function foo($a, $b) {
+    return $a !== $b;
+}""",
+            "return $a === $b;",
+        ),
+        (
+            """function foo($a, $b) {
+    return $a == $b;
+}""",
+            "return $a != $b;",
+        ),
+        (
+            """function foo($a, $b) {
+    return $a != $b;
+}""",
+            "return $a == $b;",
+        ),
+        (
+            """function foo($x, $y) {
     return $x < $y;
 }""",
-            ">=",
+            "return $x >= $y;",
         ),
         (
-            """function baz($a, $b) {
+            """function foo($x, $y) {
+    return $x >= $y;
+}""",
+            "return $x < $y;",
+        ),
+        (
+            """function foo($x, $y) {
+    return $x > $y;
+}""",
+            "return $x <= $y;",
+        ),
+        (
+            """function foo($x, $y) {
+    return $x <= $y;
+}""",
+            "return $x > $y;",
+        ),
+        (
+            """function foo($a, $b) {
     return $a && $b;
 }""",
-            "||",
+            "return $a || $b;",
+        ),
+        (
+            """function foo($a, $b) {
+    return $a || $b;
+}""",
+            "return $a && $b;",
+        ),
+        (
+            """function foo($a, $b) {
+    return $a and $b;
+}""",
+            "return $a or $b;",
+        ),
+        (
+            """function foo($a, $b) {
+    return $a or $b;
+}""",
+            "return $a and $b;",
         ),
     ],
 )
@@ -101,69 +152,86 @@ def test_operation_flip_operator_modifier(tmp_path, src, expected_substring):
 
 
 @pytest.mark.parametrize(
-    "src",
+    "src,expected_substring",
     [
-        """function foo($a, $b) {
+        (
+            """function foo($a, $b) {
     return $a + $b;
 }""",
-        """function bar($x, $y) {
+            "return $b + $a;",
+        ),
+        (
+            """function bar($x, $y) {
     return $x - $y;
 }""",
+            "return $y - $x;",
+        ),
     ],
 )
-def test_operation_swap_operands_modifier(tmp_path, src):
+def test_operation_swap_operands_modifier(tmp_path, src, expected_substring):
     entity = _get_entity(tmp_path, src)
     modifier = OperationSwapOperandsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
 
     assert result is not None
-    assert result.rewrite != src
+    assert expected_substring in result.rewrite
 
 
 @pytest.mark.parametrize(
-    "src,expected_variants",
+    "src,original,expected_variants",
     [
         (
             """function foo() {
     return 2 + $x;
 }""",
-            ["1", "3", "0", "4"],
+            "return 2 + $x;",
+            ["return 1 + $x;", "return 3 + $x;", "return 0 + $x;", "return 4 + $x;"],
         ),
         (
             """function bar() {
     return $y - 5;
 }""",
-            ["4", "6", "3", "7"],
+            "return $y - 5;",
+            ["return $y - 4;", "return $y - 6;", "return $y - 3;", "return $y - 7;"],
         ),
     ],
 )
-def test_operation_change_constants_modifier(tmp_path, src, expected_variants):
+def test_operation_change_constants_modifier(tmp_path, src, original, expected_variants):
     entity = _get_entity(tmp_path, src)
     modifier = OperationChangeConstantsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
 
     assert result is not None
-    assert any(v in result.rewrite for v in expected_variants)
+    assert original not in result.rewrite
+    assert any(v in result.rewrite for v in expected_variants), (
+        f"Expected one of {expected_variants} in output, got: {result.rewrite}"
+    )
 
 
 @pytest.mark.parametrize(
-    "src",
+    "src,dropped_operand",
     [
-        """function foo($a, $b, $c) {
+        (
+            """function foo($a, $b, $c) {
     return $a + $b + $c;
 }""",
-        """function bar($x, $y, $z) {
+            "$a",
+        ),
+        (
+            """function bar($x, $y, $z) {
     return $x * $y * $z;
 }""",
+            "$x",
+        ),
     ],
 )
-def test_operation_break_chains_modifier(tmp_path, src):
+def test_operation_break_chains_modifier(tmp_path, src, dropped_operand):
     entity = _get_entity(tmp_path, src)
     modifier = OperationBreakChainsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
 
     assert result is not None
-    assert result.rewrite != src
+    assert dropped_operand + " " not in result.rewrite.split("return")[1]
 
 
 @pytest.mark.parametrize(
@@ -174,21 +242,21 @@ def test_operation_break_chains_modifier(tmp_path, src):
     $x += 5;
     return $x;
 }""",
-            "-=",
+            "$x -= 5;",
         ),
         (
             """function bar($y) {
     $y *= 2;
     return $y;
 }""",
-            "/=",
+            "$y /= 2;",
         ),
         (
             """function baz($n) {
     $n++;
     return $n;
 }""",
-            "--",
+            "$n--;",
         ),
     ],
 )
@@ -202,23 +270,29 @@ def test_augmented_assignment_swap_modifier(tmp_path, src, expected_substring):
 
 
 @pytest.mark.parametrize(
-    "src",
+    "src,expected_substring",
     [
-        """function foo($condition) {
+        (
+            """function foo($condition) {
     return $condition ? "yes" : "no";
 }""",
-        """function bar($x) {
+            'return $condition ? "no" : "yes";',
+        ),
+        (
+            """function bar($x) {
     return $x > 0 ? 1 : -1;
 }""",
+            "return $x > 0 ? -1 : 1;",
+        ),
     ],
 )
-def test_ternary_operator_swap_modifier(tmp_path, src):
+def test_ternary_operator_swap_modifier(tmp_path, src, expected_substring):
     entity = _get_entity(tmp_path, src)
     modifier = TernaryOperatorSwapModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
 
     assert result is not None
-    assert result.rewrite != src
+    assert expected_substring in result.rewrite
 
 
 @pytest.mark.parametrize(
@@ -368,8 +442,8 @@ def test_operation_break_chains_right_chain(tmp_path):
     entity = _get_entity(tmp_path, src)
     modifier = OperationBreakChainsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
-    if result is not None:
-        assert result.rewrite != entity.src_code
+    # Parenthesized expression isn't detected as a chain, so no modification
+    assert result is None
 
 
 def test_operation_break_chains_likelihood_zero(tmp_path):
@@ -409,15 +483,11 @@ def test_ternary_swap_negate_condition(tmp_path):
     return $x > 0 ? "yes" : "no";
 }"""
     entity = _get_entity(tmp_path, src)
-    for seed in range(50):
-        modifier = TernaryOperatorSwapModifier(likelihood=1.0, seed=seed)
-        result = modifier.modify(entity)
-        if result and "!(" in result.rewrite:
-            assert "!(" in result.rewrite
-            return
-    modifier = TernaryOperatorSwapModifier(likelihood=1.0, seed=42)
+    # seed=0 produces negation
+    modifier = TernaryOperatorSwapModifier(likelihood=1.0, seed=0)
     result = modifier.modify(entity)
     assert result is not None
+    assert '!($x > 0) ? "yes" : "no"' in result.rewrite
 
 
 def test_ternary_swap_no_ternary(tmp_path):
@@ -426,6 +496,16 @@ def test_ternary_swap_no_ternary(tmp_path):
 }"""
     entity = _get_entity(tmp_path, src)
     modifier = TernaryOperatorSwapModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is None
+
+
+def test_ternary_swap_likelihood_zero(tmp_path):
+    src = """function foo($x) {
+    return $x > 0 ? "yes" : "no";
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = TernaryOperatorSwapModifier(likelihood=0.0, seed=42)
     result = modifier.modify(entity)
     assert result is None
 
@@ -467,15 +547,11 @@ def test_operation_change_exponentiation(tmp_path):
 }"""
     entity = _get_entity(tmp_path, src)
     modifier = OperationChangeModifier(likelihood=1.0, seed=42)
-    found = False
-    for _ in range(20):
-        result = modifier.modify(entity)
-        if result and any(
-            op in result.rewrite for op in ["$a * $b", "$a / $b", "$a % $b"]
-        ):
-            found = True
-            break
-    assert found, "Expected ** to be swapped with *, /, or %"
+    result = modifier.modify(entity)
+    assert result is not None
+    assert any(
+        op in result.rewrite for op in ["return $a * $b;", "return $a / $b;", "return $a % $b;"]
+    ), f"Expected ** to be swapped, got: {result.rewrite}"
 
 
 def test_change_constants_float(tmp_path):
