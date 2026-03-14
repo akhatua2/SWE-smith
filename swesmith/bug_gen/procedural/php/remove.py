@@ -127,19 +127,23 @@ class RemoveAssignmentModifier(PhpProceduralModifier):
         removals = []
 
         def collect_assignments(n):
+            matched = False
             if n.type in [
                 "assignment_expression",
                 "augmented_assignment_expression",
+                "reference_assignment_expression",
             ]:
                 if self.flip():
+                    matched = True
                     if n.parent and n.parent.type == "expression_statement":
                         removals.append(
                             (n.parent.start_byte - offset, n.parent.end_byte - offset)
                         )
                     else:
                         removals.append((n.start_byte - offset, n.end_byte - offset))
-            for child in n.children:
-                collect_assignments(child)
+            if not matched:
+                for child in n.children:
+                    collect_assignments(child)
 
         collect_assignments(node)
 
@@ -190,13 +194,16 @@ class RemoveTernaryModifier(PhpProceduralModifier):
         source_bytes = source_code.encode("utf-8")
 
         def collect_ternary_ops(n):
-            if n.type == "conditional_expression" and len(n.children) >= 5:
+            matched = False
+            if n.type == "conditional_expression":
                 content_children = [c for c in n.children if c.type not in ["?", ":"]]
                 if len(content_children) >= 3:
+                    # Standard ternary: $cond ? $then : $else
                     consequent = content_children[1]
                     alternative = content_children[2]
 
                     if self.flip():
+                        matched = True
                         keep_consequent = self.rand.choice([True, False])
                         replacement = consequent if keep_consequent else alternative
                         changes.append(
@@ -207,9 +214,27 @@ class RemoveTernaryModifier(PhpProceduralModifier):
                                 "rep_end": replacement.end_byte - offset,
                             }
                         )
+                elif len(content_children) == 2:
+                    # Elvis operator: $cond ?: $else
+                    condition = content_children[0]
+                    alternative = content_children[1]
 
-            for child in n.children:
-                collect_ternary_ops(child)
+                    if self.flip():
+                        matched = True
+                        keep_condition = self.rand.choice([True, False])
+                        replacement = condition if keep_condition else alternative
+                        changes.append(
+                            {
+                                "start": n.start_byte - offset,
+                                "end": n.end_byte - offset,
+                                "rep_start": replacement.start_byte - offset,
+                                "rep_end": replacement.end_byte - offset,
+                            }
+                        )
+
+            if not matched:
+                for child in n.children:
+                    collect_ternary_ops(child)
 
         collect_ternary_ops(node)
 

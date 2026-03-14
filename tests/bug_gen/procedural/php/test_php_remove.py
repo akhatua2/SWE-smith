@@ -221,3 +221,59 @@ def test_remove_ternary_likelihood_zero(tmp_path):
     modifier = RemoveTernaryModifier(likelihood=0.0, seed=42)
     result = modifier.modify(entity)
     assert result is None
+
+
+def test_remove_assignment_nested_no_corruption(tmp_path):
+    """Test that nested assignments like $a = $b = 5 don't corrupt output."""
+    src = """function foo($x) {
+    $a = $b = 5;
+    echo $a + $b;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveAssignmentModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is not None
+    # Should cleanly remove the whole statement, not corrupt 'echo' into 'o'
+    assert "echo" in result.rewrite or "$a = $b = 5" not in result.rewrite
+
+
+def test_remove_assignment_reference(tmp_path):
+    """Test that reference assignments ($b = &$a) are removed."""
+    src = """function foo($a) {
+    $b = &$a;
+    return $b;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveAssignmentModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is not None
+    assert "&$a" not in result.rewrite
+
+
+def test_remove_ternary_nested_no_corruption(tmp_path):
+    """Test that nested ternaries don't lose trailing code."""
+    src = """function foo($a, $b, $c, $d, $e) {
+    return $a ? $b : $c ? $d : $e;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = RemoveTernaryModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is not None
+    assert result.rewrite.rstrip().endswith("}")
+
+
+def test_remove_ternary_elvis_operator(tmp_path):
+    """Test that the elvis operator ($x ?: $default) is supported."""
+    src = """function foo($x, $default) {
+    return $x ?: $default;
+}"""
+    entity = _get_entity(tmp_path, src)
+    found = False
+    for seed in range(20):
+        modifier = RemoveTernaryModifier(likelihood=1.0, seed=seed)
+        result = modifier.modify(entity)
+        if result:
+            found = True
+            assert "?:" not in result.rewrite
+            break
+    assert found, "Elvis operator should be supported"
