@@ -1,33 +1,18 @@
 from swesmith.bug_gen.procedural.php.base import php_parse
 
 
-def test_php_parse_without_tag():
-    """Code without <?php tag should have it prepended."""
+def test_php_parse_plain_code():
+    """Plain PHP code should parse without needing a <?php tag."""
     src = "function foo() { return 1; }"
     tree, offset = php_parse(src)
-    assert offset > 0
-    assert tree.root_node is not None
-
-
-def test_php_parse_with_tag():
-    """Code already starting with <?php should not be re-wrapped."""
-    src = "<?php\nfunction foo() { return 1; }"
-    tree, offset = php_parse(src)
     assert offset == 0
     assert tree.root_node is not None
+    assert not tree.root_node.has_error
 
 
-def test_php_parse_with_short_tag():
-    """Code starting with <? (short open tag) should not be re-wrapped."""
-    src = "<?\nfunction foo() { return 1; }"
-    tree, offset = php_parse(src)
-    assert offset == 0
-    assert tree.root_node is not None
-
-
-def test_php_parse_with_whitespace_before_tag():
-    """Code with leading whitespace before <?php should not be re-wrapped."""
-    src = "  <?php\nfunction foo() { return 1; }"
-    tree, offset = php_parse(src)
-    assert offset == 0
-    assert tree.root_node is not None
+def test_php_parse_produces_function_node():
+    """Parser should produce a function_definition node."""
+    src = "function foo() { return 1; }"
+    tree, _ = php_parse(src)
+    children = [c.type for c in tree.root_node.children]
+    assert "function_definition" in children
