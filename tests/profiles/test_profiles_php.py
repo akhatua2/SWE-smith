@@ -4,7 +4,7 @@ import tempfile
 
 from swesmith.profiles.php import (
     PhpProfile,
-    Dbal,
+    Dbalacb68b38,
     Monolog6db20ca0,
     Guzzlefb92d95f,
     parse_log_phpunit_testdox,
@@ -277,7 +277,7 @@ def test_get_test_files_cache_reuse():
 
 
 def test_dbal_dockerfile():
-    profile = Dbal()
+    profile = Dbalacb68b38()
     assert "php:8.3" in profile.dockerfile
     assert f"/{ENV_NAME}" in profile.dockerfile
     assert "composer" in profile.dockerfile

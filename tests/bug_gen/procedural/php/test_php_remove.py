@@ -61,7 +61,7 @@ def test_remove_loop_modifier(tmp_path, src, loop_keyword):
 
     assert result is not None
     assert result.rewrite != src
-    assert loop_keyword not in result.rewrite or len(result.rewrite) < len(src)
+    assert loop_keyword not in result.rewrite
 
 
 @pytest.mark.parametrize(
@@ -92,26 +92,31 @@ def test_remove_conditional_modifier(tmp_path, src):
 
 
 @pytest.mark.parametrize(
-    "src",
+    "src,removed_statement",
     [
-        """function foo($x) {
+        (
+            """function foo($x) {
     $y = $x + 1;
     return $y;
 }""",
-        """function bar($a) {
+            "$y = $x + 1;",
+        ),
+        (
+            """function bar($a) {
     $a += 5;
     return $a;
 }""",
+            "$a += 5;",
+        ),
     ],
 )
-def test_remove_assignment_modifier(tmp_path, src):
+def test_remove_assignment_modifier(tmp_path, src, removed_statement):
     entity = _get_entity(tmp_path, src)
     modifier = RemoveAssignmentModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
 
     assert result is not None
-    assert result.rewrite != src
-    assert len(result.rewrite) < len(src)
+    assert removed_statement not in result.rewrite
 
 
 @pytest.mark.parametrize(

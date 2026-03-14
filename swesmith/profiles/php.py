@@ -117,7 +117,7 @@ class PhpProfile(RepoProfile):
 
 
 @dataclass
-class Dbal(PhpProfile):
+class Dbalacb68b38(PhpProfile):
     owner: str = "doctrine"
     repo: str = "dbal"
     commit: str = "acb68b388b2577bb211bb26dc22d20a8ad93d97d"
