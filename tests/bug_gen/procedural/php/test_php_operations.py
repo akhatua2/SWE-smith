@@ -470,7 +470,9 @@ def test_operation_change_exponentiation(tmp_path):
     found = False
     for _ in range(20):
         result = modifier.modify(entity)
-        if result and any(op in result.rewrite for op in ["$a * $b", "$a / $b", "$a % $b"]):
+        if result and any(
+            op in result.rewrite for op in ["$a * $b", "$a / $b", "$a % $b"]
+        ):
             found = True
             break
     assert found, "Expected ** to be swapped with *, /, or %"

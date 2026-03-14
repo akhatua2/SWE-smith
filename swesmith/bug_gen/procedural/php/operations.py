@@ -275,7 +275,9 @@ class OperationChangeConstantsModifier(PhpProceduralModifier):
             return int(value_text, 2), lambda v: f"0b{v:b}"
         elif lower.startswith("0o"):
             return int(value_text, 8), lambda v: f"0o{v:o}"
-        elif len(value_text) > 1 and value_text.startswith("0") and value_text.isdigit():
+        elif (
+            len(value_text) > 1 and value_text.startswith("0") and value_text.isdigit()
+        ):
             # Legacy octal (e.g., 077)
             return int(value_text, 8), lambda v: f"0{v:o}"
         else:
