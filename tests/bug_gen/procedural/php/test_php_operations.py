@@ -196,7 +196,9 @@ def test_operation_swap_operands_modifier(tmp_path, src, expected_substring):
         ),
     ],
 )
-def test_operation_change_constants_modifier(tmp_path, src, original, expected_variants):
+def test_operation_change_constants_modifier(
+    tmp_path, src, original, expected_variants
+):
     entity = _get_entity(tmp_path, src)
     modifier = OperationChangeConstantsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
@@ -550,7 +552,8 @@ def test_operation_change_exponentiation(tmp_path):
     result = modifier.modify(entity)
     assert result is not None
     assert any(
-        op in result.rewrite for op in ["return $a * $b;", "return $a / $b;", "return $a % $b;"]
+        op in result.rewrite
+        for op in ["return $a * $b;", "return $a / $b;", "return $a % $b;"]
     ), f"Expected ** to be swapped, got: {result.rewrite}"
 
 
