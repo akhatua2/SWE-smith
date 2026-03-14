@@ -4,6 +4,7 @@
 .api_key
 
 # Folders
+.claude/
 hidden/
 logs/
 notebooks/
