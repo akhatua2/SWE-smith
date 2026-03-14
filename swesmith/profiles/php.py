@@ -22,42 +22,18 @@ class PhpProfile(RepoProfile):
     org_dh: str = "swebench"
     test_cmd: str = "vendor/bin/phpunit --testdox --colors=never"
     exts: list[str] = field(default_factory=lambda: [".php"])
-    _test_name_to_files_cache: dict[str, set[str]] = field(
-        default=None, init=False, repr=False
-    )
+    _fqcn_to_file_cache: dict[str, str] = field(default=None, init=False, repr=False)
 
-    @staticmethod
-    def _testdox_name(method_name: str) -> str:
-        """Convert a PHP test method name to its testdox description.
+    def _build_fqcn_to_file_map(self) -> dict[str, str]:
+        """Build a mapping from fully-qualified class names to file paths.
 
-        PHPUnit strips the 'test' prefix, then converts camelCase to
-        space-separated lowercase words (first word capitalized).
-        e.g. testGetServerVersion -> Get server version
-             testFetchAssociative -> Fetch associative
-        """
-        name = method_name
-        if name.startswith("test"):
-            name = name[4:]
-        # Insert space before uppercase letters (camelCase -> words)
-        name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
-        name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", name)
-        # PHPUnit lowercases everything then capitalizes first letter
-        words = name.split()
-        if words:
-            words = [words[0]] + [w.lower() for w in words[1:]]
-            name = " ".join(words)
-        return name
-
-    def _build_test_name_to_files_map(self) -> dict[str, set[str]]:
-        """Build a mapping from testdox names to test file paths.
-
-        Scans PHP test files for method names starting with 'test' and
-        converts them to their testdox representation.
+        Scans PHP test files for namespace + class declarations.
         """
         dest, cloned = self.clone()
-        name_to_files: dict[str, set[str]] = {}
+        fqcn_to_file: dict[str, str] = {}
 
-        test_method_re = re.compile(r"(?:public\s+)?function\s+(test[A-Z]\w*)\s*\(")
+        namespace_re = re.compile(r"^\s*namespace\s+([\w\\]+)\s*;")
+        class_re = re.compile(r"^\s*(?:abstract\s+|final\s+)?class\s+(\w+)")
 
         for dirpath, _, filenames in os.walk(dest):
             if "vendor" in dirpath.split(os.sep):
@@ -65,7 +41,6 @@ class PhpProfile(RepoProfile):
             for fname in filenames:
                 if not fname.endswith(".php"):
                     continue
-                # PHPUnit convention: test files end with Test.php or are in tests/ dir
                 parts = dirpath.split(os.sep)
                 in_test_dir = any(
                     p in ("test", "tests", "Test", "Tests") for p in parts
@@ -83,36 +58,49 @@ class PhpProfile(RepoProfile):
                 except (OSError, UnicodeDecodeError):
                     continue
 
-                for match in test_method_re.finditer(content):
-                    testdox = self._testdox_name(match.group(1))
-                    name_to_files.setdefault(testdox, set()).add(relative_path)
+                namespace = ""
+                for line in content.split("\n"):
+                    ns_match = namespace_re.match(line)
+                    if ns_match:
+                        namespace = ns_match.group(1)
+                        break
+
+                for line in content.split("\n"):
+                    cls_match = class_re.match(line)
+                    if cls_match:
+                        fqcn = cls_match.group(1)
+                        if namespace:
+                            fqcn = f"{namespace}\\{fqcn}"
+                        fqcn_to_file[fqcn] = relative_path
+                        break
 
         if cloned:
             shutil.rmtree(dest)
-        return name_to_files
+        return fqcn_to_file
 
     def get_test_files(self, instance: dict) -> tuple[list[str], list[str]]:
         assert FAIL_TO_PASS in instance and PASS_TO_PASS in instance, (
             f"Instance {instance[KEY_INSTANCE_ID]} missing required keys {FAIL_TO_PASS} or {PASS_TO_PASS}"
         )
 
-        if self._test_name_to_files_cache is None:
+        if self._fqcn_to_file_cache is None:
             with self._lock:
-                if self._test_name_to_files_cache is None:
-                    self._test_name_to_files_cache = (
-                        self._build_test_name_to_files_map()
+                if self._fqcn_to_file_cache is None:
+                    self._fqcn_to_file_cache = (
+                        self._build_fqcn_to_file_map()
                     )
 
-        f2p_files: set[str] = set()
-        for test_name in instance[FAIL_TO_PASS]:
-            if test_name in self._test_name_to_files_cache:
-                f2p_files.update(self._test_name_to_files_cache[test_name])
+        def _resolve_files(test_names: list[str]) -> set[str]:
+            files: set[str] = set()
+            for test_name in test_names:
+                # test_name is "FQCN::Testdox name" — extract the FQCN
+                fqcn = test_name.split("::")[0] if "::" in test_name else test_name
+                if fqcn in self._fqcn_to_file_cache:
+                    files.add(self._fqcn_to_file_cache[fqcn])
+            return files
 
-        p2p_files: set[str] = set()
-        for test_name in instance[PASS_TO_PASS]:
-            if test_name in self._test_name_to_files_cache:
-                p2p_files.update(self._test_name_to_files_cache[test_name])
-
+        f2p_files = _resolve_files(instance[FAIL_TO_PASS])
+        p2p_files = _resolve_files(instance[PASS_TO_PASS])
         return list(f2p_files), list(p2p_files)
 
 
@@ -144,12 +132,23 @@ RUN composer install
 
 
 def parse_log_phpunit_testdox(log: str) -> dict[str, str]:
-    """Parse PHPUnit --testdox output format."""
+    """Parse PHPUnit --testdox output format.
+
+    Captures class headers like:
+        Connection (Doctrine\\DBAL\\Tests\\ConnectionTest)
+    and qualifies test names as 'FQCN::Testdox name'.
+    """
     test_status_map = {}
+    class_header = re.compile(r"^.+\((.+)\)\s*$")
     passed_pattern = re.compile(r"^\s*✔\s*(.+)$")
     failed_pattern = re.compile(r"^\s*✘\s*(.+)$")
     skipped_pattern = re.compile(r"^\s*↩\s*(.+)$")
+    current_class = None
     for line in log.split("\n"):
+        cm = class_header.match(line)
+        if cm:
+            current_class = cm.group(1).strip()
+            continue
         for pattern, status in (
             (passed_pattern, TestStatus.PASSED.value),
             (failed_pattern, TestStatus.FAILED.value),
@@ -158,43 +157,12 @@ def parse_log_phpunit_testdox(log: str) -> dict[str, str]:
             match = pattern.match(line)
             if match:
                 test_name = match.group(1).strip()
+                if current_class:
+                    test_name = f"{current_class}::{test_name}"
                 test_status_map[test_name] = status
                 break
     return test_status_map
 
-
-def parse_log_phpunit_verbose(log: str) -> dict[str, str]:
-    """Parse PHPUnit --verbose (non-testdox) output format.
-
-    Matches lines like:
-    ✓ testMethodName
-    ✗ testMethodName
-    Or standard verbose format:
-    OK (42 tests, 100 assertions)
-    FAILURES!
-    Tests: 42, Assertions: 100, Failures: 2.
-    """
-    test_status_map = {}
-    # Match individual test results in verbose mode
-    # Format: "Test\\Namespace\\Class::testMethod"
-    passed = re.compile(r"^\s*✓\s*(.+)$")
-    failed = re.compile(r"^\s*✗\s*(.+)$")
-    # Also match standard PHPUnit output lines
-    std_pass = re.compile(r"^ok \d+ - (.+)$", re.IGNORECASE)
-    std_fail = re.compile(r"^not ok \d+ - (.+)$", re.IGNORECASE)
-    for line in log.split("\n"):
-        for pattern, status in (
-            (passed, TestStatus.PASSED.value),
-            (failed, TestStatus.FAILED.value),
-            (std_pass, TestStatus.PASSED.value),
-            (std_fail, TestStatus.FAILED.value),
-        ):
-            match = pattern.match(line)
-            if match:
-                test_name = match.group(1).strip()
-                test_status_map[test_name] = status
-                break
-    return test_status_map
 
 
 @dataclass

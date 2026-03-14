@@ -8,7 +8,6 @@ from swesmith.profiles.php import (
     Monolog6db20ca0,
     Guzzlefb92d95f,
     parse_log_phpunit_testdox,
-    parse_log_phpunit_verbose,
 )
 from swesmith.constants import ENV_NAME
 from swebench.harness.constants import TestStatus
@@ -49,41 +48,51 @@ def _make_profile_with_clone(tmp_path):
 
 def _make_profile_with_cache(cache):
     profile = make_dummy_php_profile()
-    profile._test_name_to_files_cache = cache
+    profile._fqcn_to_file_cache = cache
     return profile
 
 
-# --- Log parser tests ---
 
-
-def test_parse_log_phpunit_testdox_passed():
-    log = " ✔ Prepare\n ✔ Query\n ✔ Exec"
+def test_parse_log_phpunit_testdox_with_class_header():
+    log = (
+        "Connection (Doctrine\\DBAL\\Tests\\ConnectionTest)\n"
+        " ✔ Prepare\n"
+        " ✔ Query\n"
+        " ✘ Exec"
+    )
     result = parse_log_phpunit_testdox(log)
-    assert result["Prepare"] == TestStatus.PASSED.value
-    assert result["Query"] == TestStatus.PASSED.value
-    assert result["Exec"] == TestStatus.PASSED.value
+    assert result["Doctrine\\DBAL\\Tests\\ConnectionTest::Prepare"] == TestStatus.PASSED.value
+    assert result["Doctrine\\DBAL\\Tests\\ConnectionTest::Query"] == TestStatus.PASSED.value
+    assert result["Doctrine\\DBAL\\Tests\\ConnectionTest::Exec"] == TestStatus.FAILED.value
 
 
-def test_parse_log_phpunit_testdox_failed():
-    log = " ✘ Fetch associative"
+def test_parse_log_phpunit_testdox_multiple_classes():
+    log = (
+        "Connection (App\\Tests\\ATest)\n"
+        " ✔ Execute\n"
+        "\n"
+        "Statement (App\\Tests\\BTest)\n"
+        " ✔ Execute\n"
+    )
     result = parse_log_phpunit_testdox(log)
-    assert result["Fetch associative"] == TestStatus.FAILED.value
+    assert "App\\Tests\\ATest::Execute" in result
+    assert "App\\Tests\\BTest::Execute" in result
+    assert len(result) == 2
 
 
 def test_parse_log_phpunit_testdox_skipped():
-    log = " ↩ Some skipped test"
+    log = (
+        "Foo (App\\Tests\\FooTest)\n"
+        " ↩ Some skipped test"
+    )
     result = parse_log_phpunit_testdox(log)
-    assert result["Some skipped test"] == TestStatus.SKIPPED.value
+    assert result["App\\Tests\\FooTest::Some skipped test"] == TestStatus.SKIPPED.value
 
 
-def test_parse_log_phpunit_testdox_mixed():
-    log = " ✔ Test one\n ✘ Test two\n ↩ Test three\n ✔ Test four"
+def test_parse_log_phpunit_testdox_no_class_header():
+    log = " ✔ Bare test"
     result = parse_log_phpunit_testdox(log)
-    assert len(result) == 4
-    assert result["Test one"] == TestStatus.PASSED.value
-    assert result["Test two"] == TestStatus.FAILED.value
-    assert result["Test three"] == TestStatus.SKIPPED.value
-    assert result["Test four"] == TestStatus.PASSED.value
+    assert result["Bare test"] == TestStatus.PASSED.value
 
 
 def test_parse_log_phpunit_testdox_empty():
@@ -91,96 +100,48 @@ def test_parse_log_phpunit_testdox_empty():
     assert result == {}
 
 
-def test_parse_log_phpunit_verbose_passed():
-    log = " ✓ testPrepare\n ✓ testQuery"
-    result = parse_log_phpunit_verbose(log)
-    assert result["testPrepare"] == TestStatus.PASSED.value
-    assert result["testQuery"] == TestStatus.PASSED.value
-
-
-def test_parse_log_phpunit_verbose_failed():
-    log = " ✗ testFetchAssociative"
-    result = parse_log_phpunit_verbose(log)
-    assert result["testFetchAssociative"] == TestStatus.FAILED.value
-
-
-# --- Testdox name conversion tests ---
-
-
-def test_testdox_name_simple():
-    assert PhpProfile._testdox_name("testPrepare") == "Prepare"
-
-
-def test_testdox_name_camel_case():
-    assert PhpProfile._testdox_name("testGetServerVersion") == "Get server version"
-
-
-def test_testdox_name_multi_word():
-    assert PhpProfile._testdox_name("testFetchAssociative") == "Fetch associative"
-
-
-def test_testdox_name_consecutive_uppercase():
-    assert PhpProfile._testdox_name("testGetHTTPResponse") == "Get http response"
-
-
-# --- Build test name to files map tests ---
-
 
 def test_build_map_basic_test_file(tmp_path):
     _write_file(
         tmp_path,
         "tests/ConnectionTest.php",
-        "<?php\nclass ConnectionTest {\n    public function testPrepare() {}\n    public function testQuery() {}\n}\n",
+        "<?php\nnamespace App\\Tests;\nclass ConnectionTest {\n    public function testPrepare() {}\n}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    assert "Prepare" in result
-    assert "tests/ConnectionTest.php" in result["Prepare"]
-    assert "Query" in result
-    assert "tests/ConnectionTest.php" in result["Query"]
+    result = profile._build_fqcn_to_file_map()
+    assert result["App\\Tests\\ConnectionTest"] == "tests/ConnectionTest.php"
 
 
-def test_build_map_without_public_modifier(tmp_path):
+def test_build_map_no_namespace(tmp_path):
     _write_file(
         tmp_path,
         "tests/FooTest.php",
         "<?php\nclass FooTest {\n    function testSomething() {}\n}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    assert "Something" in result
-
-
-def test_build_map_camel_case_method(tmp_path):
-    _write_file(
-        tmp_path,
-        "tests/BarTest.php",
-        "<?php\nclass BarTest {\n    public function testGetServerVersion() {}\n}\n",
-    )
-    profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    assert "Get server version" in result
+    result = profile._build_fqcn_to_file_map()
+    assert result["FooTest"] == "tests/FooTest.php"
 
 
 def test_build_map_vendor_skipped(tmp_path):
     _write_file(
         tmp_path,
         "vendor/pkg/tests/SomeTest.php",
-        "<?php\nclass SomeTest {\n    public function testVendor() {}\n}\n",
+        "<?php\nnamespace Vendor\\Tests;\nclass SomeTest {}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    assert "Vendor" not in result
+    result = profile._build_fqcn_to_file_map()
+    assert result == {}
 
 
 def test_build_map_non_test_file_ignored(tmp_path):
     _write_file(
         tmp_path,
         "src/Connection.php",
-        "<?php\nclass Connection {\n    public function testLike() {}\n}\n",
+        "<?php\nnamespace App;\nclass Connection {}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
+    result = profile._build_fqcn_to_file_map()
     assert result == {}
 
 
@@ -188,44 +149,41 @@ def test_build_map_test_dir_convention(tmp_path):
     _write_file(
         tmp_path,
         "Test/Unit/Helper.php",
-        "<?php\nclass Helper {\n    public function testFormat() {}\n}\n",
+        "<?php\nnamespace App\\Test\\Unit;\nclass Helper {}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    assert "Format" in result
+    result = profile._build_fqcn_to_file_map()
+    assert result["App\\Test\\Unit\\Helper"] == "Test/Unit/Helper.php"
 
 
-def test_build_map_same_name_multiple_files(tmp_path):
+def test_build_map_same_method_different_classes(tmp_path):
     _write_file(
         tmp_path,
         "tests/ATest.php",
-        "<?php\nclass ATest {\n    public function testExecute() {}\n}\n",
+        "<?php\nnamespace App\\Tests;\nclass ATest {\n    public function testExecute() {}\n}\n",
     )
     _write_file(
         tmp_path,
         "tests/BTest.php",
-        "<?php\nclass BTest {\n    public function testExecute() {}\n}\n",
+        "<?php\nnamespace App\\Tests;\nclass BTest {\n    public function testExecute() {}\n}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    assert "Execute" in result
-    assert result["Execute"] == {"tests/ATest.php", "tests/BTest.php"}
+    result = profile._build_fqcn_to_file_map()
+    assert result["App\\Tests\\ATest"] == "tests/ATest.php"
+    assert result["App\\Tests\\BTest"] == "tests/BTest.php"
 
-
-# --- get_test_files tests ---
 
 
 def test_get_test_files_basic():
     cache = {
-        "Prepare": {"tests/ConnectionTest.php"},
-        "Query": {"tests/ConnectionTest.php"},
-        "Format output": {"tests/FormatterTest.php"},
+        "App\\Tests\\ConnectionTest": "tests/ConnectionTest.php",
+        "App\\Tests\\FormatterTest": "tests/FormatterTest.php",
     }
     profile = _make_profile_with_cache(cache)
     instance = {
         "instance_id": "dummy__dummyrepo.deadbeef.1",
-        "FAIL_TO_PASS": ["Prepare"],
-        "PASS_TO_PASS": ["Query", "Format output"],
+        "FAIL_TO_PASS": ["App\\Tests\\ConnectionTest::Prepare"],
+        "PASS_TO_PASS": ["App\\Tests\\ConnectionTest::Query", "App\\Tests\\FormatterTest::Format output"],
     }
     f2p, p2p = profile.get_test_files(instance)
     assert set(f2p) == {"tests/ConnectionTest.php"}
@@ -233,12 +191,12 @@ def test_get_test_files_basic():
 
 
 def test_get_test_files_missing_names():
-    cache = {"Prepare": {"tests/ConnectionTest.php"}}
+    cache = {"App\\Tests\\ConnectionTest": "tests/ConnectionTest.php"}
     profile = _make_profile_with_cache(cache)
     instance = {
         "instance_id": "dummy__dummyrepo.deadbeef.1",
-        "FAIL_TO_PASS": ["Not in cache"],
-        "PASS_TO_PASS": ["Also missing"],
+        "FAIL_TO_PASS": ["App\\Tests\\Missing::Not in cache"],
+        "PASS_TO_PASS": ["App\\Tests\\AlsoMissing::Also missing"],
     }
     f2p, p2p = profile.get_test_files(instance)
     assert f2p == []
@@ -273,8 +231,6 @@ def test_get_test_files_cache_reuse():
     assert clone_count == 1
 
 
-# --- Profile tests ---
-
 
 def test_dbal_dockerfile():
     profile = Dbalacb68b38()
@@ -304,16 +260,13 @@ def test_php_profile_defaults():
 
 def test_build_map_unreadable_file(tmp_path):
     """Files that can't be read (OSError/UnicodeDecodeError) are skipped."""
-    # Write a binary file that will cause UnicodeDecodeError
     test_dir = tmp_path / "tests"
     test_dir.mkdir()
     bad_file = test_dir / "BadTest.php"
-    bad_file.write_bytes(b"<?php\n\xff\xfe function testBad() {}\n")
+    bad_file.write_bytes(b"<?php\n\xff\xfe class BadTest {}\n")
 
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    # The file should be skipped due to decode error, but not crash
-    # It may or may not have results depending on whether the binary content is valid
+    result = profile._build_fqcn_to_file_map()
     assert isinstance(result, dict)
 
 
@@ -322,29 +275,23 @@ def test_build_map_test_prefixed_file(tmp_path):
     _write_file(
         tmp_path,
         "src/testHelper.php",
-        "<?php\nclass TestHelper {\n    public function testDoStuff() {}\n}\n",
+        "<?php\nclass TestHelper {}\n",
     )
     profile = _make_profile_with_clone(tmp_path)
-    result = profile._build_test_name_to_files_map()
-    assert "Do stuff" in result
-
-
-def test_testdox_name_no_test_prefix():
-    """Method name without 'test' prefix still gets camelCase splitting."""
-    assert PhpProfile._testdox_name("setUp") == "set up"
+    result = profile._build_fqcn_to_file_map()
+    assert result["TestHelper"] == "src/testHelper.php"
 
 
 def test_get_test_files_partial_cache_match():
     """Some test names in cache, some not."""
     cache = {
-        "Prepare": {"tests/ConnectionTest.php"},
-        "Query": {"tests/ConnectionTest.php"},
+        "App\\Tests\\ConnectionTest": "tests/ConnectionTest.php",
     }
     profile = _make_profile_with_cache(cache)
     instance = {
         "instance_id": "dummy__dummyrepo.deadbeef.1",
-        "FAIL_TO_PASS": ["Prepare", "Not in cache"],
-        "PASS_TO_PASS": ["Query", "Also missing"],
+        "FAIL_TO_PASS": ["App\\Tests\\ConnectionTest::Prepare", "App\\Tests\\Missing::Not in cache"],
+        "PASS_TO_PASS": ["App\\Tests\\ConnectionTest::Query", "App\\Tests\\AlsoMissing::Also missing"],
     }
     f2p, p2p = profile.get_test_files(instance)
     assert set(f2p) == {"tests/ConnectionTest.php"}
