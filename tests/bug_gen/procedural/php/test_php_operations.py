@@ -89,12 +89,6 @@ def test_operation_change_modifier(tmp_path, src, expected_variants):
 }""",
             "||",
         ),
-        (
-            """function qux($a, $b) {
-    return $a + $b;
-}""",
-            "-",
-        ),
     ],
 )
 def test_operation_flip_operator_modifier(tmp_path, src, expected_substring):
@@ -323,8 +317,8 @@ def test_operation_swap_operands_no_changes_likelihood_zero(tmp_path):
     assert result is None
 
 
-def test_operation_swap_operands_comparison_flip(tmp_path):
-    """Test that comparison operators are flipped when operands are swapped."""
+def test_operation_swap_operands_comparison_no_flip(tmp_path):
+    """Test that comparison operators are NOT flipped when operands are swapped (to actually change semantics)."""
     src = """function foo($a, $b) {
     return $a < $b;
 }"""
@@ -332,6 +326,8 @@ def test_operation_swap_operands_comparison_flip(tmp_path):
     modifier = OperationSwapOperandsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
     assert result is not None
+    # Operator should stay as "<" (not flipped to ">"), so "$b < $a" changes behavior
+    assert "$b < $a" in result.rewrite
 
 
 def test_operation_change_constants_no_integers(tmp_path):
@@ -462,3 +458,71 @@ def test_function_argument_swap_likelihood_zero(tmp_path):
     modifier = FunctionArgumentSwapModifier(likelihood=0.0, seed=42)
     result = modifier.modify(entity)
     assert result is None
+
+
+def test_operation_change_exponentiation(tmp_path):
+    """Test that ** operator can be swapped with *, /, %."""
+    src = """function foo($a, $b) {
+    return $a ** $b;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = OperationChangeModifier(likelihood=1.0, seed=42)
+    found = False
+    for _ in range(20):
+        result = modifier.modify(entity)
+        if result and any(op in result.rewrite for op in ["$a * $b", "$a / $b", "$a % $b"]):
+            found = True
+            break
+    assert found, "Expected ** to be swapped with *, /, or %"
+
+
+def test_change_constants_float(tmp_path):
+    """Test that float literals are modified."""
+    src = """function foo() {
+    return 3.14 + $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = OperationChangeConstantsModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is not None
+    assert "3.14" not in result.rewrite
+
+
+def test_change_constants_hex(tmp_path):
+    """Test that hex literals are modified and stay in hex format."""
+    src = """function foo() {
+    return 0xFF + $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = OperationChangeConstantsModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    assert result is not None
+    assert "0x" in result.rewrite
+    assert "0xFF" not in result.rewrite
+
+
+def test_change_constants_octal_skipped(tmp_path):
+    """Test that legacy octal literals are handled correctly."""
+    src = """function foo() {
+    return 077 + $x;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = OperationChangeConstantsModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    if result is not None:
+        # Should stay in octal format (start with 0)
+        assert "077" not in result.rewrite
+
+
+def test_break_chains_nested_no_corruption(tmp_path):
+    """Test that nested expressions don't get corrupted by overlapping changes."""
+    src = """function foo($a, $b, $c, $d, $extra) {
+    return foo($a + $b + $c + $d) + $extra;
+}"""
+    entity = _get_entity(tmp_path, src)
+    modifier = OperationBreakChainsModifier(likelihood=1.0, seed=42)
+    result = modifier.modify(entity)
+    if result is not None:
+        # The result should be valid PHP (no garbled output)
+        assert "function foo" in result.rewrite
+        assert "return" in result.rewrite

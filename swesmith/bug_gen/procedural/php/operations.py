@@ -43,29 +43,29 @@ class OperationChangeModifier(PhpProceduralModifier):
     def _change_operators(self, source_code: str, node, offset: int) -> str:
         changes = []
 
-        operator_groups = {
-            "+": ["+", "-"],
-            "-": ["+", "-"],
-            "*": ["*", "/", "%"],
-            "/": ["*", "/", "%"],
-            "%": ["*", "/", "%"],
-            "&": ["&", "|", "^"],
-            "|": ["&", "|", "^"],
-            "^": ["&", "|", "^"],
-            "<<": ["<<", ">>"],
-            ">>": ["<<", ">>"],
-            ".": [".", "+"],  # PHP string concatenation
+        operator_swaps = {
+            "+": ["-"],
+            "-": ["+"],
+            "*": ["/", "%", "**"],
+            "/": ["*", "%", "**"],
+            "%": ["*", "/", "**"],
+            "**": ["*", "/", "%"],
+            "&": ["|", "^"],
+            "|": ["&", "^"],
+            "^": ["&", "|"],
+            "<<": [">>"],
+            ">>": ["<<"],
+            ".": ["+"],  # PHP string concatenation
         }
 
         def collect_binary_ops(n):
             if n.type == "binary_expression":
                 for child in n.children:
-                    if child.type in operator_groups:
+                    if child.type in operator_swaps:
                         operator = child.type
-                        group = operator_groups[operator]
-                        other_ops = [op for op in group if op != operator]
-                        if other_ops and self.flip():
-                            new_op = self.rand.choice(other_ops)
+                        candidates = operator_swaps[operator]
+                        if self.flip():
+                            new_op = self.rand.choice(candidates)
                             changes.append(
                                 {
                                     "start": child.start_byte - offset,
@@ -133,11 +133,6 @@ class OperationFlipOperatorModifier(PhpProceduralModifier):
             "||": "&&",
             "and": "or",
             "or": "and",
-            "+": "-",
-            "-": "+",
-            "*": "/",
-            "/": "*",
-            ".": "+",  # PHP concat to addition
         }
 
         def collect_binary_ops(n):
@@ -207,11 +202,6 @@ class OperationSwapOperandsModifier(PhpProceduralModifier):
                 right = n.children[2]
 
                 if self.flip():
-                    operator = operator_node.type
-                    if operator in ["<", ">", "<=", ">="]:
-                        op_flip = {"<": ">", ">": "<", "<=": ">=", ">=": "<="}
-                        operator = op_flip.get(operator, operator)
-
                     changes.append(
                         {
                             "node_start": n.start_byte - offset,
@@ -220,7 +210,7 @@ class OperationSwapOperandsModifier(PhpProceduralModifier):
                             "left_end": left.end_byte - offset,
                             "right_start": right.start_byte - offset,
                             "right_end": right.end_byte - offset,
-                            "operator": operator,
+                            "operator": operator_node.type,
                         }
                     )
 
@@ -275,19 +265,47 @@ class OperationChangeConstantsModifier(PhpProceduralModifier):
             strategy=self.name,
         )
 
+    @staticmethod
+    def _parse_php_int(value_text: str):
+        """Parse a PHP integer literal, returning (value, formatter) or (None, None)."""
+        lower = value_text.lower()
+        if lower.startswith("0x"):
+            return int(value_text, 16), lambda v: f"0x{v:X}"
+        elif lower.startswith("0b"):
+            return int(value_text, 2), lambda v: f"0b{v:b}"
+        elif lower.startswith("0o"):
+            return int(value_text, 8), lambda v: f"0o{v:o}"
+        elif len(value_text) > 1 and value_text.startswith("0") and value_text.isdigit():
+            # Legacy octal (e.g., 077)
+            return int(value_text, 8), lambda v: f"0{v:o}"
+        else:
+            return int(value_text), str
+
     def _change_constants(self, source_code: str, node, offset: int) -> str:
         changes = []
         source_bytes = source_code.encode("utf-8")
 
         def collect_numbers(n):
-            # PHP uses "integer" instead of "number"
             if n.type == "integer" and self.flip():
                 try:
                     start = n.start_byte - offset
                     end = n.end_byte - offset
                     value_text = _safe_decode(source_bytes[start:end])
-                    value = int(value_text)
-                    new_value = value + self.rand.choice([-1, 1, -2, 2])
+                    value, fmt = self._parse_php_int(value_text)
+                    if value is not None:
+                        new_value = value + self.rand.choice([-1, 1, -2, 2])
+                        changes.append(
+                            {"start": start, "end": end, "new_value": fmt(new_value)}
+                        )
+                except ValueError:
+                    pass
+            elif n.type == "float" and self.flip():
+                try:
+                    start = n.start_byte - offset
+                    end = n.end_byte - offset
+                    value_text = _safe_decode(source_bytes[start:end])
+                    value = float(value_text)
+                    new_value = value + self.rand.choice([-1.0, 1.0, -0.5, 0.5])
                     changes.append(
                         {"start": start, "end": end, "new_value": str(new_value)}
                     )
@@ -339,6 +357,7 @@ class OperationBreakChainsModifier(PhpProceduralModifier):
         source_bytes = source_code.encode("utf-8")
 
         def collect_chains(n):
+            matched = False
             if n.type == "binary_expression" and len(n.children) >= 3:
                 left = n.children[0]
                 operator = n.children[1]
@@ -371,6 +390,7 @@ class OperationBreakChainsModifier(PhpProceduralModifier):
                                 "replacement": f"{lr_text} {op_text} {r_text}",
                             }
                         )
+                        matched = True
 
                 elif right.type == "binary_expression" and self.flip():
                     if len(right.children) >= 3:
@@ -399,9 +419,13 @@ class OperationBreakChainsModifier(PhpProceduralModifier):
                                 "replacement": f"{l_text} {op_text} {rl_text}",
                             }
                         )
+                        matched = True
 
-            for child in n.children:
-                collect_chains(child)
+            # Don't recurse into children of a matched node to avoid
+            # overlapping changes that would corrupt byte offsets
+            if not matched:
+                for child in n.children:
+                    collect_chains(child)
 
         collect_chains(node)
 
