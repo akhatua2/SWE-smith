@@ -52,7 +52,6 @@ def _make_profile_with_cache(cache):
     return profile
 
 
-
 def test_parse_log_phpunit_testdox_with_class_header():
     log = (
         "Connection (Doctrine\\DBAL\\Tests\\ConnectionTest)\n"
@@ -61,9 +60,17 @@ def test_parse_log_phpunit_testdox_with_class_header():
         " ✘ Exec"
     )
     result = parse_log_phpunit_testdox(log)
-    assert result["Doctrine\\DBAL\\Tests\\ConnectionTest::Prepare"] == TestStatus.PASSED.value
-    assert result["Doctrine\\DBAL\\Tests\\ConnectionTest::Query"] == TestStatus.PASSED.value
-    assert result["Doctrine\\DBAL\\Tests\\ConnectionTest::Exec"] == TestStatus.FAILED.value
+    assert (
+        result["Doctrine\\DBAL\\Tests\\ConnectionTest::Prepare"]
+        == TestStatus.PASSED.value
+    )
+    assert (
+        result["Doctrine\\DBAL\\Tests\\ConnectionTest::Query"]
+        == TestStatus.PASSED.value
+    )
+    assert (
+        result["Doctrine\\DBAL\\Tests\\ConnectionTest::Exec"] == TestStatus.FAILED.value
+    )
 
 
 def test_parse_log_phpunit_testdox_multiple_classes():
@@ -81,10 +88,7 @@ def test_parse_log_phpunit_testdox_multiple_classes():
 
 
 def test_parse_log_phpunit_testdox_skipped():
-    log = (
-        "Foo (App\\Tests\\FooTest)\n"
-        " ↩ Some skipped test"
-    )
+    log = "Foo (App\\Tests\\FooTest)\n ↩ Some skipped test"
     result = parse_log_phpunit_testdox(log)
     assert result["App\\Tests\\FooTest::Some skipped test"] == TestStatus.SKIPPED.value
 
@@ -98,7 +102,6 @@ def test_parse_log_phpunit_testdox_no_class_header():
 def test_parse_log_phpunit_testdox_empty():
     result = parse_log_phpunit_testdox("")
     assert result == {}
-
 
 
 def test_build_map_basic_test_file(tmp_path):
@@ -173,7 +176,6 @@ def test_build_map_same_method_different_classes(tmp_path):
     assert result["App\\Tests\\BTest"] == "tests/BTest.php"
 
 
-
 def test_get_test_files_basic():
     cache = {
         "App\\Tests\\ConnectionTest": "tests/ConnectionTest.php",
@@ -183,7 +185,10 @@ def test_get_test_files_basic():
     instance = {
         "instance_id": "dummy__dummyrepo.deadbeef.1",
         "FAIL_TO_PASS": ["App\\Tests\\ConnectionTest::Prepare"],
-        "PASS_TO_PASS": ["App\\Tests\\ConnectionTest::Query", "App\\Tests\\FormatterTest::Format output"],
+        "PASS_TO_PASS": [
+            "App\\Tests\\ConnectionTest::Query",
+            "App\\Tests\\FormatterTest::Format output",
+        ],
     }
     f2p, p2p = profile.get_test_files(instance)
     assert set(f2p) == {"tests/ConnectionTest.php"}
@@ -229,7 +234,6 @@ def test_get_test_files_cache_reuse():
     profile.get_test_files(instance)
     profile.get_test_files(instance)
     assert clone_count == 1
-
 
 
 def test_dbal_dockerfile():
@@ -290,8 +294,14 @@ def test_get_test_files_partial_cache_match():
     profile = _make_profile_with_cache(cache)
     instance = {
         "instance_id": "dummy__dummyrepo.deadbeef.1",
-        "FAIL_TO_PASS": ["App\\Tests\\ConnectionTest::Prepare", "App\\Tests\\Missing::Not in cache"],
-        "PASS_TO_PASS": ["App\\Tests\\ConnectionTest::Query", "App\\Tests\\AlsoMissing::Also missing"],
+        "FAIL_TO_PASS": [
+            "App\\Tests\\ConnectionTest::Prepare",
+            "App\\Tests\\Missing::Not in cache",
+        ],
+        "PASS_TO_PASS": [
+            "App\\Tests\\ConnectionTest::Query",
+            "App\\Tests\\AlsoMissing::Also missing",
+        ],
     }
     f2p, p2p = profile.get_test_files(instance)
     assert set(f2p) == {"tests/ConnectionTest.php"}

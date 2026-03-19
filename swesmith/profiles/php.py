@@ -86,9 +86,7 @@ class PhpProfile(RepoProfile):
         if self._fqcn_to_file_cache is None:
             with self._lock:
                 if self._fqcn_to_file_cache is None:
-                    self._fqcn_to_file_cache = (
-                        self._build_fqcn_to_file_map()
-                    )
+                    self._fqcn_to_file_cache = self._build_fqcn_to_file_map()
 
         def _resolve_files(test_names: list[str]) -> set[str]:
             files: set[str] = set()
@@ -162,7 +160,6 @@ def parse_log_phpunit_testdox(log: str) -> dict[str, str]:
                 test_status_map[test_name] = status
                 break
     return test_status_map
-
 
 
 @dataclass
