@@ -239,7 +239,7 @@ def test_remove_assignment_nested_no_corruption(tmp_path):
     result = modifier.modify(entity)
     assert result is not None
     # Should cleanly remove the whole statement, not corrupt 'echo' into 'o'
-    assert "echo" in result.rewrite or "$a = $b = 5" not in result.rewrite
+    assert "echo" in result.rewrite and "$a = $b = 5" not in result.rewrite
 
 
 def test_remove_assignment_reference(tmp_path):

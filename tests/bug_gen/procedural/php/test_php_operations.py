@@ -570,7 +570,7 @@ def test_change_constants_float(tmp_path):
 
 
 def test_change_constants_hex(tmp_path):
-    """Test that hex literals are modified and stay in hex format."""
+    """Test that hex literals are modified."""
     src = """function foo() {
     return 0xFF + $x;
 }"""
@@ -578,21 +578,19 @@ def test_change_constants_hex(tmp_path):
     modifier = OperationChangeConstantsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
     assert result is not None
-    assert "0x" in result.rewrite
     assert "0xFF" not in result.rewrite
 
 
-def test_change_constants_octal_skipped(tmp_path):
-    """Test that legacy octal literals are handled correctly."""
+def test_change_constants_octal(tmp_path):
+    """Test that octal literals are handled correctly."""
     src = """function foo() {
     return 077 + $x;
 }"""
     entity = _get_entity(tmp_path, src)
     modifier = OperationChangeConstantsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
-    if result is not None:
-        # Should stay in octal format (start with 0)
-        assert "077" not in result.rewrite
+    assert result is not None
+    assert "077" not in result.rewrite
 
 
 def test_break_chains_nested_no_corruption(tmp_path):
@@ -603,7 +601,6 @@ def test_break_chains_nested_no_corruption(tmp_path):
     entity = _get_entity(tmp_path, src)
     modifier = OperationBreakChainsModifier(likelihood=1.0, seed=42)
     result = modifier.modify(entity)
-    if result is not None:
-        # The result should be valid PHP (no garbled output)
-        assert "function foo" in result.rewrite
-        assert "return" in result.rewrite
+    assert result is not None
+    assert "function foo" in result.rewrite
+    assert "return" in result.rewrite

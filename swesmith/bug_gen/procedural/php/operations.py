@@ -266,22 +266,15 @@ class OperationChangeConstantsModifier(PhpProceduralModifier):
         )
 
     @staticmethod
-    def _parse_php_int(value_text: str):
-        """Parse a PHP integer literal, returning (value, formatter) or (None, None)."""
+    def _parse_php_int(value_text: str) -> int:
+        """Parse a PHP integer literal, returning its integer value."""
         lower = value_text.lower()
-        if lower.startswith("0x"):
-            return int(value_text, 16), lambda v: f"0x{v:X}"
-        elif lower.startswith("0b"):
-            return int(value_text, 2), lambda v: f"0b{v:b}"
-        elif lower.startswith("0o"):
-            return int(value_text, 8), lambda v: f"0o{v:o}"
-        elif (
-            len(value_text) > 1 and value_text.startswith("0") and value_text.isdigit()
-        ):
-            # Legacy octal (e.g., 077)
-            return int(value_text, 8), lambda v: f"0{v:o}"
-        else:
-            return int(value_text), str
+        for prefix, base in [("0x", 16), ("0b", 2), ("0o", 8)]:
+            if lower.startswith(prefix):
+                return int(value_text, base)
+        if len(value_text) > 1 and value_text.startswith("0") and value_text.isdigit():
+            return int(value_text, 8)
+        return int(value_text)
 
     def _change_constants(self, source_code: str, node, offset: int) -> str:
         changes = []
@@ -293,12 +286,11 @@ class OperationChangeConstantsModifier(PhpProceduralModifier):
                     start = n.start_byte - offset
                     end = n.end_byte - offset
                     value_text = _safe_decode(source_bytes[start:end])
-                    value, fmt = self._parse_php_int(value_text)
-                    if value is not None:
-                        new_value = value + self.rand.choice([-1, 1, -2, 2])
-                        changes.append(
-                            {"start": start, "end": end, "new_value": fmt(new_value)}
-                        )
+                    value = self._parse_php_int(value_text)
+                    new_value = value + self.rand.choice([-1, 1, -2, 2])
+                    changes.append(
+                        {"start": start, "end": end, "new_value": str(new_value)}
+                    )
                 except ValueError:
                     pass
             elif n.type == "float" and self.flip():
