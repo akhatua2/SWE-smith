@@ -11,6 +11,7 @@ from swesmith.bug_gen.procedural.cpp import MODIFIERS_CPP
 from swesmith.bug_gen.procedural.golang import MODIFIERS_GOLANG
 from swesmith.bug_gen.procedural.java import MODIFIERS_JAVA
 from swesmith.bug_gen.procedural.javascript import MODIFIERS_JAVASCRIPT
+from swesmith.bug_gen.procedural.php import MODIFIERS_PHP
 from swesmith.bug_gen.procedural.python import MODIFIERS_PYTHON
 from swesmith.bug_gen.procedural.ruby import MODIFIERS_RUBY
 from swesmith.bug_gen.procedural.rust import MODIFIERS_RUST
@@ -25,6 +26,7 @@ MAP_EXT_TO_MODIFIERS = {
     ".h": MODIFIERS_CPP,
     ".hpp": MODIFIERS_CPP,
     ".js": MODIFIERS_JAVASCRIPT,
+    ".php": MODIFIERS_PHP,
     ".py": MODIFIERS_PYTHON,
     ".rb": MODIFIERS_RUBY,
     ".rs": MODIFIERS_RUST,
